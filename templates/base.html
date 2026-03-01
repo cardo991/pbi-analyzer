@@ -22,8 +22,10 @@
 
     <nav class="navbar navbar-expand-lg">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index', lang=lang) }}">
-                <i class="bi bi-activity me-2"></i>{{ t('app_title') }}
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index', lang=lang) }}">
+                <img src="{{ url_for('static', filename='img/ypf-logo.svg') }}" alt="YPF" class="navbar-logo me-2">
+                <span class="brand-separator me-2"></span>
+                <span>{{ t('app_title') }}</span>
             </a>
             <div class="d-flex align-items-center gap-2">
                 <a href="{{ url_for('history', lang=lang) }}" class="btn-ghost btn-sm" style="font-size:0.78rem;">

@@ -140,6 +140,29 @@ a:hover { color: var(--accent); opacity: 0.85; }
 .navbar-brand i {
     color: var(--accent) !important;
 }
+.navbar-logo {
+    height: 22px;
+    width: auto;
+    color: var(--accent);
+    transition: color 0.3s ease;
+}
+.brand-separator {
+    width: 1px;
+    height: 20px;
+    background: var(--glass-border);
+    display: inline-block;
+}
+
+/* --- Hero Logo (index page) --- */
+.hero-logo {
+    height: 56px;
+    width: auto;
+    color: var(--accent);
+    transition: transform 0.4s ease, color 0.3s ease;
+}
+.hero-logo:hover {
+    transform: scale(1.05);
+}
 
 /* --- Theme Toggle --- */
 .theme-toggle {
