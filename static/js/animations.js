@@ -1,5 +1,5 @@
 /**
- * PBI Analyzer - UI Animations
+ * GridPulse - UI Animations
  * Score gauge, counters, progress bars, cascade
  */
 document.addEventListener('DOMContentLoaded', function() {

@@ -1,4 +1,4 @@
-"""PBI Analyzer - Flask web application."""
+"""GridPulse - Flask web application."""
 
 import hashlib
 import json

@@ -34,7 +34,7 @@ def create_test_zip():
 
 def main():
     print("=" * 60)
-    print("PBI Analyzer - Test Run")
+    print("GridPulse - Test Run")
     print("=" * 60)
 
     # Create ZIP and parse

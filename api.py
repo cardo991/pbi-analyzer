@@ -1,4 +1,4 @@
-"""REST API Blueprint for PBI Analyzer."""
+"""REST API Blueprint for GridPulse."""
 
 import os
 import tempfile
@@ -8,7 +8,7 @@ from flask import Blueprint, request, jsonify
 api_bp = Blueprint("api", __name__)
 
 # Optional API key authentication
-API_KEY = os.environ.get("PBI_ANALYZER_API_KEY", "")
+API_KEY = os.environ.get("GRIDPULSE_API_KEY", "")
 
 
 def _check_api_key():

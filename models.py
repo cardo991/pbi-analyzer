@@ -1,4 +1,4 @@
-"""Unified data models for PBI Analyzer."""
+"""Unified data models for GridPulse."""
 
 from dataclasses import dataclass, field
 

@@ -6,7 +6,7 @@ import sqlite3
 from datetime import datetime
 
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "pbi_analyzer.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "gridpulse.db")
 
 
 def get_db():

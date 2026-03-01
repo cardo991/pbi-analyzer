@@ -12,7 +12,7 @@
     <script>
         // Apply saved theme before render to avoid flash
         (function(){
-            var t = localStorage.getItem('pbi-theme') || 'dark';
+            var t = localStorage.getItem('gp-theme') || 'dark';
             document.documentElement.setAttribute('data-theme', t);
         })();
     </script>
@@ -23,7 +23,7 @@
     <nav class="navbar navbar-expand-lg">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('index', lang=lang) }}">
-                <i class="bi bi-lightning-charge-fill me-2"></i>{{ t('app_title') }}
+                <i class="bi bi-activity me-2"></i>{{ t('app_title') }}
             </a>
             <div class="d-flex align-items-center gap-2">
                 <a href="{{ url_for('history', lang=lang) }}" class="btn-ghost btn-sm" style="font-size:0.78rem;">
@@ -45,7 +45,7 @@
 
     <footer class="py-3 mt-5">
         <div class="container text-center">
-            <small style="color:var(--text-3);">PBI Analyzer &mdash; Power BI Report Health Check</small>
+            <small style="color:var(--text-3);">GridPulse &mdash; Power BI Intelligence Platform</small>
         </div>
     </footer>
 
@@ -58,10 +58,10 @@
             var icon = document.getElementById('theme-icon');
             function applyTheme(theme) {
                 document.documentElement.setAttribute('data-theme', theme);
-                localStorage.setItem('pbi-theme', theme);
+                localStorage.setItem('gp-theme', theme);
                 icon.className = theme === 'dark' ? 'bi bi-moon-stars-fill' : 'bi bi-sun-fill';
             }
-            applyTheme(localStorage.getItem('pbi-theme') || 'dark');
+            applyTheme(localStorage.getItem('gp-theme') || 'dark');
             btn.addEventListener('click', function(){
                 var current = document.documentElement.getAttribute('data-theme');
                 applyTheme(current === 'dark' ? 'light' : 'dark');

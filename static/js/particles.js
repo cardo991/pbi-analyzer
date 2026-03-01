@@ -1,7 +1,7 @@
 /**
- * Constellation/Network Particle System
+ * GridPulse - Constellation Particle System
  * Floating luminous dots that connect with lines when close.
- * Adapts color to current theme.
+ * Adapts color to current theme (YPF blue palette).
  */
 (function() {
     const canvas = document.getElementById('particles-canvas');
@@ -17,7 +17,7 @@
     // Theme-aware color
     function getParticleColor() {
         var theme = document.documentElement.getAttribute('data-theme') || 'dark';
-        return theme === 'light' ? '0, 100, 180' : '0, 224, 255';
+        return theme === 'light' ? '0, 99, 190' : '0, 120, 232';
     }
     var pColor = getParticleColor();
 

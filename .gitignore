@@ -8,6 +8,7 @@ build/
 .env
 *.db
 *.sqlite3
+pbi_analyzer.db
 static/uploads/branding/
 .claude/
 *.zip

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PBI Analyzer - Scheduled Watch Mode.
+"""GridPulse - Scheduled Watch Mode.
 
 Monitors a folder for PBIP ZIP files and auto-analyzes on changes.
 
@@ -83,7 +83,7 @@ def watch(folder: str, interval: int = 30, lang: str = "en",
     if output_dir and not os.path.isdir(output_dir):
         os.makedirs(output_dir, exist_ok=True)
 
-    print(f"=== PBI Analyzer Watch Mode ===")
+    print(f"=== GridPulse Watch Mode ===")
     print(f"  Folder: {os.path.abspath(folder)}")
     print(f"  Interval: {interval}s")
     print(f"  Language: {lang}")
@@ -202,7 +202,7 @@ def _now() -> str:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="PBI Analyzer - Watch Mode",
+        description="GridPulse - Watch Mode",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command")

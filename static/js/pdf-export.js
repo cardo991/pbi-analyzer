@@ -33,7 +33,7 @@ function exportPDF() {
 
     const opt = {
         margin: [10, 10, 10, 10],
-        filename: 'pbi-analysis-report.pdf',
+        filename: 'gridpulse-report.pdf',
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: {
             scale: 2,

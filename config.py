@@ -1,4 +1,4 @@
-"""Configuration and thresholds for PBI Analyzer."""
+"""Configuration and thresholds for GridPulse."""
 
 # --- Scoring weights (must sum to 100) ---
 CATEGORY_WEIGHTS = {

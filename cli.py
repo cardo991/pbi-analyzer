@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PBI Analyzer - CLI Mode.
+"""GridPulse - CLI Mode.
 
 Usage:
     python cli.py analyze project.zip [options]
@@ -123,7 +123,7 @@ def format_text(result: dict) -> str:
     """Format analysis results as human-readable text."""
     lines = []
     lines.append("=" * 60)
-    lines.append(f"  PBI Analyzer - {result['project_name']}")
+    lines.append(f"  GridPulse - {result['project_name']}")
     lines.append("=" * 60)
     lines.append("")
 
@@ -194,7 +194,7 @@ def format_json(result: dict) -> str:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="PBI Analyzer - Power BI Report Health Check (CLI)",
+        description="GridPulse - Power BI Intelligence Platform (CLI)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command")

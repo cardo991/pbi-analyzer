@@ -1,6 +1,6 @@
 {
-  "app_title": "PBI Analyzer",
-  "app_subtitle": "Verificacao de Saude de Relatorios Power BI",
+  "app_title": "GridPulse",
+  "app_subtitle": "Plataforma de Inteligencia Power BI",
   "upload_title": "Envie seu projeto PBIP",
   "upload_desc": "Arraste e solte sua pasta PBIP (como ZIP) ou clique para procurar",
   "upload_btn": "Analisar Relatorio",
