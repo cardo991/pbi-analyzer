@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 style="font-weight:800;letter-spacing:-0.5px;color:var(--text-1);">
+            <i class="bi bi-arrow-left-right me-2" style="color:var(--accent);"></i>{{ t('compare_title') }}
+        </h2>
+        <a href="{{ url_for('history', lang=lang) }}" class="btn-ghost">
+            <i class="bi bi-arrow-left me-1"></i>{{ t('history_title') }}
+        </a>
+    </div>
+
+    <!-- Score Comparison -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-5 cascade-in">
+            <div class="card h-100 text-center p-4">
+                <h6 style="color:var(--text-2);font-weight:600;">{{ comparison.analysis1.project_name }}</h6>
+                <div class="small mb-2" style="color:var(--text-3);">{{ comparison.analysis1.analyzed_at[:19] }}</div>
+                <div class="gauge-score grade-{{ comparison.analysis1.grade|lower }}" style="font-size:3rem;font-weight:800;">
+                    {{ comparison.analysis1.total_score }}
+                </div>
+                <div class="gauge-grade grade-{{ comparison.analysis1.grade|lower }}" style="font-size:1.5rem;font-weight:800;opacity:1;transform:none;">
+                    {{ comparison.analysis1.grade }}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 cascade-in d-flex align-items-center justify-content-center">
+            <div class="text-center">
+                <div style="font-size:2rem;font-weight:800;color:{{ 'var(--grade-a)' if comparison.score_delta > 0 else 'var(--severity-error)' if comparison.score_delta < 0 else 'var(--text-3)' }};">
+                    {% if comparison.score_delta > 0 %}<i class="bi bi-arrow-up-circle-fill"></i>{% elif comparison.score_delta < 0 %}<i class="bi bi-arrow-down-circle-fill"></i>{% else %}<i class="bi bi-dash-circle"></i>{% endif %}
+                </div>
+                <div style="font-size:1.4rem;font-weight:700;color:{{ 'var(--grade-a)' if comparison.score_delta > 0 else 'var(--severity-error)' if comparison.score_delta < 0 else 'var(--text-3)' }};">
+                    {% if comparison.score_delta > 0 %}+{% endif %}{{ comparison.score_delta }}
+                </div>
+                <div class="small" style="color:var(--text-3);">{{ t('compare_score_change') }}</div>
+            </div>
+        </div>
+        <div class="col-md-5 cascade-in">
+            <div class="card h-100 text-center p-4">
+                <h6 style="color:var(--text-2);font-weight:600;">{{ comparison.analysis2.project_name }}</h6>
+                <div class="small mb-2" style="color:var(--text-3);">{{ comparison.analysis2.analyzed_at[:19] }}</div>
+                <div class="gauge-score grade-{{ comparison.analysis2.grade|lower }}" style="font-size:3rem;font-weight:800;">
+                    {{ comparison.analysis2.total_score }}
+                </div>
+                <div class="gauge-grade grade-{{ comparison.analysis2.grade|lower }}" style="font-size:1.5rem;font-weight:800;opacity:1;transform:none;">
+                    {{ comparison.analysis2.grade }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Changes -->
+    <div class="card mb-4 cascade-in">
+        <div class="card-header py-3">
+            <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                <i class="bi bi-bar-chart-line me-1" style="color:var(--accent);"></i>{{ t('health_score') }}
+            </h6>
+        </div>
+        <div class="card-body">
+            {% for cat, change in comparison.category_changes.items() %}
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span style="font-weight:600;color:var(--text-1);">{{ t('cat_' + cat) }}</span>
+                <div class="d-flex align-items-center gap-2">
+                    <span style="color:var(--text-3);">{{ change.before }}</span>
+                    <i class="bi bi-arrow-right" style="color:var(--text-3);"></i>
+                    <span style="font-weight:700;color:var(--text-1);">{{ change.after }}</span>
+                    {% if change.delta != 0 %}
+                    <span style="font-size:0.8rem;font-weight:600;color:{{ 'var(--grade-a)' if change.delta > 0 else 'var(--severity-error)' }};">
+                        ({% if change.delta > 0 %}+{% endif %}{{ change.delta }})
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- New Findings -->
+    {% if comparison.new_findings %}
+    <div class="card mb-4 cascade-in">
+        <div class="card-header py-3">
+            <h6 class="mb-0" style="font-weight:700;color:var(--severity-error);">
+                <i class="bi bi-plus-circle me-1"></i>{{ t('compare_new_findings') }}
+                <span class="badge bg-danger ms-1">{{ comparison.new_findings|length }}</span>
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            {% for f in comparison.new_findings %}
+            <div class="finding-item">
+                <div class="d-flex align-items-start gap-3">
+                    <span class="severity-badge severity-{{ f.severity }}">{{ f.severity }}</span>
+                    <div>
+                        <span class="rule-id">{{ f.rule_id }}</span>
+                        <div style="font-size:0.87rem;color:var(--text-1);">{{ f.message }}</div>
+                        {% if f.location %}<div class="finding-location"><i class="bi bi-geo-alt me-1"></i>{{ f.location }}</div>{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Removed Findings -->
+    {% if comparison.removed_findings %}
+    <div class="card mb-4 cascade-in">
+        <div class="card-header py-3">
+            <h6 class="mb-0" style="font-weight:700;color:var(--grade-a);">
+                <i class="bi bi-check-circle me-1"></i>{{ t('compare_removed_findings') }}
+                <span class="badge bg-success ms-1">{{ comparison.removed_findings|length }}</span>
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            {% for f in comparison.removed_findings %}
+            <div class="finding-item" style="opacity:0.7;">
+                <div class="d-flex align-items-start gap-3">
+                    <span class="severity-badge severity-{{ f.severity }}">{{ f.severity }}</span>
+                    <div>
+                        <span class="rule-id">{{ f.rule_id }}</span>
+                        <div style="font-size:0.87rem;color:var(--text-1);text-decoration:line-through;">{{ f.message }}</div>
+                        {% if f.location %}<div class="finding-location"><i class="bi bi-geo-alt me-1"></i>{{ f.location }}</div>{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

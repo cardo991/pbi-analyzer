@@ -1,0 +1,712 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="report-content">
+
+    <!-- Branding Header (for PDF export) -->
+    {% if branding_html and branding_html.header %}
+    {{ branding_html.header|safe }}
+    {% endif %}
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4 fade-in">
+        <div>
+            <h2 class="mb-1" style="font-weight:800;letter-spacing:-0.5px;color:var(--text-1);">
+                {{ t('results_title') }}
+            </h2>
+            <div class="d-flex align-items-center gap-2 mt-1">
+                <span style="color:var(--text-2);">{{ project_name }}</span>
+                <span class="badge bg-secondary">{{ model_format|upper }}</span>
+                {% if report_format %}<span class="badge bg-secondary">{{ report_format|upper }}</span>{% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('index', lang=lang) }}" class="btn-ghost">
+                <i class="bi bi-arrow-left me-1"></i>{{ t('back') }}
+            </a>
+            <button class="btn-neon" onclick="exportPDF()">
+                <i class="bi bi-file-earmark-pdf me-1"></i>
+                <span>{{ t('download_pdf') }}</span>
+            </button>
+            <a href="{{ url_for('export_excel', lang=lang) }}" class="btn-ghost">
+                <i class="bi bi-file-earmark-excel me-1"></i>{{ t('download_excel') }}
+            </a>
+            <a href="{{ url_for('export_markdown', lang=lang) }}" class="btn-ghost">
+                <i class="bi bi-filetype-md me-1"></i>{{ t('download_markdown') }}
+            </a>
+        </div>
+    </div>
+
+    {% if parse_errors %}
+    <div class="alert alert-warning mb-4">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        {% for err in parse_errors %}{{ err }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Executive Summary -->
+    {% if exec_summary %}
+    <div class="card mb-4 cascade-in" style="border-left:4px solid var(--accent) !important;">
+        <div class="card-body">
+            <h6 style="font-weight:700;color:var(--accent);margin-bottom:0.5rem;">
+                <i class="bi bi-clipboard2-data me-1"></i>{{ t('exec_summary_title') }}
+            </h6>
+            <p style="color:var(--text-1);font-size:0.9rem;margin-bottom:0.3rem;">
+                {{ t('exec_summary_template', tables=exec_summary.total_tables, measures=exec_summary.total_measures, relationships=exec_summary.total_relationships, findings=exec_summary.total_findings, attention=t('exec_summary_attention', areas=exec_summary.attention_areas|join(', ')) if exec_summary.has_issues else t('exec_summary_no_issues')) }}
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Score Section -->
+    <div class="row mb-4 g-4">
+        <div class="col-md-4 cascade-in">
+            <div class="card h-100 text-center" style="padding:1.8rem 1rem;">
+                <div class="gauge-container">
+                    <svg class="gauge-svg" viewBox="0 0 200 200">
+                        <defs>
+                            <filter id="glow"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                        </defs>
+                        <circle class="gauge-bg" cx="100" cy="100" r="90"/>
+                        <circle class="gauge-fill grade-{{ score.grade|lower }}" cx="100" cy="100" r="90" data-score="{{ score.total_score }}" style="filter:url(#glow);"/>
+                    </svg>
+                    <div class="gauge-center">
+                        <div class="gauge-score grade-{{ score.grade|lower }}">0</div>
+                        <div class="gauge-label">{{ t('of') }} 100</div>
+                        <div class="gauge-grade grade-{{ score.grade|lower }}">{{ score.grade }}</div>
+                    </div>
+                </div>
+                <p style="color:var(--text-3);font-size:0.82rem;margin-top:0.8rem;padding:0 0.5rem;">
+                    {{ t(score.grade_key) }}
+                </p>
+            </div>
+        </div>
+
+        <div class="col-md-8 cascade-in">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 style="font-weight:700;margin-bottom:1.3rem;color:var(--text-1);">
+                        <i class="bi bi-bar-chart-line me-1" style="color:var(--accent);"></i>
+                        {{ t('health_score') }}
+                    </h6>
+                    {% set categories = [
+                        ('data_model', 'cat_data_model', 'bi-diagram-3', 'cat-model'),
+                        ('dax', 'cat_dax', 'bi-calculator', 'cat-dax'),
+                        ('power_query', 'cat_power_query', 'bi-funnel', 'cat-pq'),
+                        ('report', 'cat_report', 'bi-layout-text-window-reverse', 'cat-report')
+                    ] %}
+                    {% for cat_key, cat_label, cat_icon, cat_class in categories %}
+                    {% set cat_score = score.category_scores[cat_key] %}
+                    {% set cat_max = score.category_max[cat_key] %}
+                    {% set pct = (cat_score / cat_max * 100)|round if cat_max > 0 else 0 %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="cat-icon {{ cat_class }}"><i class="bi {{ cat_icon }}"></i></span>
+                                <span style="font-weight:600;font-size:0.88rem;color:var(--text-1);">{{ t(cat_label) }}</span>
+                            </div>
+                            <span style="font-weight:700;font-size:0.85rem;color:var(--text-2);">{{ cat_score }}/{{ cat_max }}</span>
+                        </div>
+                        <div class="cat-progress">
+                            <div class="cat-progress-fill {{ cat_class }}" data-pct="{{ pct }}"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Score Widget -->
+    {% if performance %}
+    <div class="card mb-4 cascade-in">
+        <div class="card-body d-flex align-items-center gap-4 py-3 px-4">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-speedometer2 fs-4" style="color:var(--accent);"></i>
+                <span style="font-weight:700;color:var(--text-1);">{{ t('perf_title') }}</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span style="font-size:1.5rem;font-weight:800;" class="grade-{{ performance.perf_grade|lower }}">{{ performance.perf_score }}/100</span>
+                <span class="badge {% if performance.perf_grade == 'A' %}bg-success{% elif performance.perf_grade == 'B' %}bg-primary{% elif performance.perf_grade == 'C' %}bg-warning{% else %}bg-danger{% endif %}">{{ performance.perf_grade }}</span>
+            </div>
+            <div class="d-flex gap-3 ms-auto" style="font-size:0.82rem;color:var(--text-3);">
+                <span><i class="bi bi-star{% if performance.details.is_star_schema %}-fill text-warning{% endif %} me-1"></i>{{ t('perf_star_schema') }}: {% if performance.details.is_star_schema %}Yes{% else %}No{% endif %}</span>
+                <span><i class="bi bi-arrow-left-right me-1"></i>{{ t('perf_bidir_count') }}: {{ performance.details.bidir_count }}</span>
+                <span><i class="bi bi-hdd me-1"></i>DQ: {{ performance.details.directquery_tables }} / Import: {{ performance.details.import_tables }}</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-0" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-findings">
+                <i class="bi bi-search me-1"></i>{{ t('findings_title') }}
+                <span class="badge bg-primary ms-1">{{ findings|length }}</span>
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-suggestions">
+                <i class="bi bi-lightbulb me-1"></i>{{ t('suggestions_title') }}
+                <span class="badge bg-info ms-1">{{ kpi_suggestions|length + dax_improvements|length }}</span>
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-docs">
+                <i class="bi bi-book me-1"></i>{{ t('documentation_title') }}
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-diagram">
+                <i class="bi bi-diagram-3 me-1"></i>{{ t('diagram_title') }}
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content mt-3">
+
+        <!-- ===== FINDINGS TAB ===== -->
+        <div class="tab-pane fade show active" id="tab-findings">
+
+            <!-- Filter Bar (F4) -->
+            <div class="card mb-3 p-3" id="findings-filter-bar">
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <div class="flex-grow-1">
+                        <input type="text" id="findings-search" class="form-control form-control-sm" placeholder="{{ t('search_findings') }}" style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);">
+                    </div>
+                    <div class="d-flex gap-1">
+                        <button class="filter-severity-btn active btn-ghost btn-sm" data-severity="all">{{ t('all') }}</button>
+                        <button class="filter-severity-btn active btn-ghost btn-sm" data-severity="error" style="color:var(--severity-error);">
+                            <i class="bi bi-x-circle-fill me-1"></i>{{ t('severity_error') }}
+                        </button>
+                        <button class="filter-severity-btn active btn-ghost btn-sm" data-severity="warning" style="color:var(--severity-warning);">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ t('severity_warning') }}
+                        </button>
+                        <button class="filter-severity-btn active btn-ghost btn-sm" data-severity="info" style="color:var(--severity-info);">
+                            <i class="bi bi-info-circle-fill me-1"></i>{{ t('severity_info') }}
+                        </button>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <button class="filter-category-btn active btn-ghost btn-sm" data-category="data_model">DM</button>
+                        <button class="filter-category-btn active btn-ghost btn-sm" data-category="dax">DAX</button>
+                        <button class="filter-category-btn active btn-ghost btn-sm" data-category="power_query">PQ</button>
+                        <button class="filter-category-btn active btn-ghost btn-sm" data-category="report">RP</button>
+                    </div>
+                    <div id="findings-counter" data-template="{{ t('showing_x_of_y') }}" style="font-size:0.78rem;color:var(--text-3);"></div>
+                </div>
+            </div>
+
+            {% set categories_list = [
+                ('data_model', 'cat_data_model', 'bi-diagram-3', 'cat-model'),
+                ('dax', 'cat_dax', 'bi-calculator', 'cat-dax'),
+                ('power_query', 'cat_power_query', 'bi-funnel', 'cat-pq'),
+                ('report', 'cat_report', 'bi-layout-text-window-reverse', 'cat-report')
+            ] %}
+            {% for cat_key, cat_label, cat_icon, cat_class in categories_list %}
+            {% set cat_findings = score.category_findings.get(cat_key, []) %}
+            <div class="card mb-3 cascade-in finding-category-card" data-category="{{ cat_key }}">
+                <div class="card-header d-flex justify-content-between align-items-center py-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="cat-icon {{ cat_class }}"><i class="bi {{ cat_icon }}"></i></span>
+                        <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">{{ t(cat_label) }}</h6>
+                    </div>
+                    <span class="findings-count {{ 'has-issues' if cat_findings|length > 0 else 'no-issues' }}">
+                        {{ cat_findings|length }}
+                    </span>
+                </div>
+                <div class="card-body p-0">
+                    {% if cat_findings %}
+                        {% for f in cat_findings %}
+                        <div class="finding-item" data-severity="{{ f.severity }}" data-category="{{ f.category }}">
+                            <div class="d-flex align-items-start gap-3">
+                                <span class="severity-badge severity-{{ f.severity }}">
+                                    {% if f.severity == 'error' %}<i class="bi bi-x-circle-fill"></i>
+                                    {% elif f.severity == 'warning' %}<i class="bi bi-exclamation-triangle-fill"></i>
+                                    {% else %}<i class="bi bi-info-circle-fill"></i>{% endif %}
+                                    {{ t('severity_' + f.severity) }}
+                                </span>
+                                <div class="flex-grow-1">
+                                    <span class="rule-id">{{ f.rule_id }}</span>
+                                    <div style="margin-top:2px;font-size:0.87rem;color:var(--text-1);">{{ f.message }}</div>
+                                    {% if f.location %}
+                                    <div class="finding-location mt-1"><i class="bi bi-geo-alt me-1"></i>{{ f.location }}</div>
+                                    {% endif %}
+                                    {% if f.details.get('suggestion') %}
+                                    <div class="finding-suggestion">
+                                        <div class="improvement-label">
+                                            <i class="bi bi-magic"></i> {{ t('improved_version') }}
+                                        </div>
+                                        <pre class="mb-0"><code>{{ f.details.suggestion }}</code></pre>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="text-center py-4">
+                        <div class="no-findings-check mb-2"><i class="bi bi-check-lg"></i></div>
+                        <div style="color:var(--accent);font-size:0.88rem;">{{ t('no_findings') }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- ===== SUGGESTIONS TAB ===== -->
+        <div class="tab-pane fade" id="tab-suggestions">
+
+            <!-- KPI Suggestions -->
+            <div class="card suggestion-card mb-3 cascade-in">
+                <div class="card-header py-3">
+                    <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                        <i class="bi bi-lightbulb me-1" style="color:var(--accent2);"></i>
+                        {{ t('kpi_suggestions') }}
+                    </h6>
+                    <small style="color:var(--text-3);">{{ t('kpi_suggestions_desc') }}</small>
+                </div>
+                <div class="card-body p-0">
+                    {% if kpi_suggestions %}
+                        {% for kpi in kpi_suggestions %}
+                        <div class="kpi-item">
+                            <div class="d-flex gap-3">
+                                <div class="kpi-icon">
+                                    <i class="bi {{ kpi.icon }}"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="kpi-name">{{ kpi.name }}</div>
+                                    <div class="kpi-desc">{{ kpi.description }}</div>
+                                    <div class="kpi-dax">{{ kpi.dax }}</div>
+                                    {% if kpi.format %}
+                                    <div style="margin-top:0.3rem;font-size:0.73rem;color:var(--text-3);">
+                                        {{ t('format_string') }}: <code>{{ kpi.format }}</code>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="text-center py-4">
+                        <div class="no-findings-check mb-2"><i class="bi bi-check-lg"></i></div>
+                        <div style="color:var(--accent);font-size:0.88rem;">{{ t('no_suggestions') }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- DAX Improvements -->
+            {% if dax_improvements %}
+            <div class="card suggestion-card mb-3 cascade-in">
+                <div class="card-header py-3">
+                    <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                        <i class="bi bi-wrench me-1" style="color:var(--accent2);"></i>
+                        {{ t('dax_improvements') }}
+                    </h6>
+                    <small style="color:var(--text-3);">{{ t('dax_improvements_desc') }}</small>
+                </div>
+                <div class="card-body p-0">
+                    {% for f in dax_improvements %}
+                    <div class="kpi-item">
+                        <div class="d-flex gap-3">
+                            <div class="kpi-icon" style="background:var(--severity-info-bg);color:var(--severity-info);">
+                                <i class="bi bi-code-slash"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="rule-id">{{ f.rule_id }}</span>
+                                    <span class="severity-badge severity-{{ f.severity }}" style="font-size:0.6rem;">{{ t('severity_' + f.severity) }}</span>
+                                </div>
+                                <div style="font-size:0.85rem;color:var(--text-1);margin-top:3px;">{{ f.message }}</div>
+                                {% if f.location %}
+                                <div class="finding-location mt-1"><i class="bi bi-geo-alt me-1"></i>{{ f.location }}</div>
+                                {% endif %}
+                                <div style="margin-top:0.5rem;">
+                                    <div class="improvement-label">
+                                        <i class="bi bi-magic"></i> {{ t('improved_version') }}
+                                    </div>
+                                    <div class="kpi-dax">{{ f.details.suggestion }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Unused Measures (F8) -->
+            {% if unused_measures %}
+            <div class="card mb-3 cascade-in">
+                <div class="card-header py-3">
+                    <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                        <i class="bi bi-exclamation-diamond me-1" style="color:var(--severity-warning);"></i>
+                        {{ t('unused_measures_title') }}
+                    </h6>
+                    <small style="color:var(--text-3);">{{ t('unused_measures_desc') }}</small>
+                </div>
+                <div class="card-body p-0">
+                    {% for m in unused_measures %}
+                    <div class="finding-item">
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="severity-badge severity-warning" style="font-size:0.6rem;">
+                                <i class="bi bi-exclamation-triangle-fill"></i> {{ t('unused_warning') }}
+                            </span>
+                            <div>
+                                <span style="font-weight:600;color:var(--accent);">{{ m.name }}</span>
+                                <span style="font-size:0.8rem;color:var(--text-3);margin-left:0.5rem;">{{ m.table }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ===== DOCUMENTATION TAB ===== -->
+        <div class="tab-pane fade" id="tab-docs">
+            <!-- Overview -->
+            <div class="card mb-3 cascade-in">
+                <div class="card-header py-3">
+                    <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                        <i class="bi bi-info-circle me-1" style="color:var(--accent);"></i>{{ t('doc_overview') }}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% set stats = [
+                            ('total_tables', documentation.overview.total_tables, 'bi-table'),
+                            ('total_columns', documentation.overview.total_columns, 'bi-list-columns'),
+                            ('total_measures', documentation.overview.total_measures, 'bi-calculator'),
+                            ('total_calc_columns', documentation.overview.total_calc_columns, 'bi-code-slash'),
+                            ('total_relationships', documentation.overview.total_relationships, 'bi-link-45deg'),
+                            ('total_pages', documentation.overview.total_pages, 'bi-file-earmark')
+                        ] %}
+                        {% for label, value, icon in stats %}
+                        <div class="col-6 col-sm-4 col-md-2">
+                            <div class="stat-box">
+                                <i class="bi {{ icon }} d-block fs-4 mb-1"></i>
+                                <div class="stat-number" data-count="{{ value }}">0</div>
+                                <div class="stat-label">{{ t(label) }}</div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- DAX Complexity (F9) -->
+            {% if dax_complexity %}
+            <div class="card mb-3 cascade-in">
+                <div class="card-header py-3">
+                    <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                        <i class="bi bi-speedometer2 me-1" style="color:var(--accent);"></i>{{ t('dax_complexity_title') }}
+                    </h6>
+                    <small style="color:var(--text-3);">{{ t('top_complex_measures') }}</small>
+                </div>
+                <div class="card-body">
+                    {% for m in dax_complexity[:10] %}
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div style="min-width:180px;">
+                            <span style="font-weight:600;font-size:0.85rem;color:var(--text-1);">{{ m.name }}</span>
+                            <div class="small" style="color:var(--text-3);">{{ m.table }}</div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="cat-progress" style="height:5px;">
+                                {% set bar_pct = [m.score / 1, 100]|min %}
+                                <div style="height:100%;border-radius:6px;width:{{ bar_pct }}%;background:{% if m.level == 'low' %}var(--grade-a){% elif m.level == 'medium' %}var(--grade-c){% elif m.level == 'high' %}var(--grade-d){% else %}var(--grade-f){% endif %};"></div>
+                            </div>
+                        </div>
+                        <div style="min-width:80px;text-align:right;">
+                            <span style="font-weight:700;font-size:0.85rem;color:var(--text-1);">{{ m.score }}</span>
+                            <span class="badge {% if m.level == 'low' %}bg-success{% elif m.level == 'medium' %}bg-warning{% elif m.level == 'high' %}bg-warning{% else %}bg-danger{% endif %}" style="font-size:0.6rem;">
+                                {{ t('complexity_' + m.level) }}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Measure Lineage (F5) -->
+            {% if lineage and lineage.has_lineage %}
+            <div class="card mb-3 cascade-in">
+                <div class="card-header py-3">
+                    <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                        <i class="bi bi-bezier2 me-1" style="color:var(--accent);"></i>{{ t('lineage_title') }}
+                    </h6>
+                    <small style="color:var(--text-3);">{{ t('lineage_desc') }}</small>
+                </div>
+                <div class="card-body p-2" style="overflow-x:auto;">
+                    <div id="lineage-container" style="min-height:200px;"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Theme/Color Palette (F14) -->
+            {% if theme_analysis %}
+            <div class="card mb-3 cascade-in">
+                <div class="card-header py-3">
+                    <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                        <i class="bi bi-palette me-1" style="color:var(--accent);"></i>{{ t('theme_title') }}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3"><strong style="color:var(--text-2);font-size:0.85rem;">{{ t('theme_palette') }}</strong></div>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        {% for c in theme_analysis.colors %}
+                        <div class="text-center">
+                            <div style="width:48px;height:48px;border-radius:8px;background:{{ c.hex }};border:2px solid {% if c.warnings %}var(--severity-warning){% else %}var(--glass-border){% endif %};"></div>
+                            <div style="font-size:0.65rem;color:var(--text-3);margin-top:2px;">{{ c.hex }}</div>
+                            {% for w in c.warnings %}
+                            <i class="bi bi-exclamation-triangle-fill" style="color:var(--severity-warning);font-size:0.7rem;" title="{{ t('theme_contrast_warning') if w == 'low_contrast' else t('theme_similar_warning') }}"></i>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if theme_analysis.contrast_issues %}
+                    <div class="alert alert-warning py-2" style="font-size:0.82rem;">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        {{ theme_analysis.contrast_issues|length }} {{ t('theme_contrast_warning') }}
+                    </div>
+                    {% endif %}
+                    {% if theme_analysis.similarity_issues %}
+                    <div class="alert alert-warning py-2" style="font-size:0.82rem;">
+                        <i class="bi bi-palette2 me-1"></i>
+                        {{ theme_analysis.similarity_issues|length }} {{ t('theme_similar_warning') }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Tables -->
+            <div class="card mb-3 cascade-in">
+                <div class="card-header py-3">
+                    <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                        <i class="bi bi-table me-1" style="color:var(--accent);"></i>{{ t('doc_tables') }}
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="accordion" id="tables-accordion">
+                        {% for tbl in documentation.tables %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tbl-{{ loop.index }}">
+                                    <span class="me-auto">{{ tbl.name }}{% if tbl.is_hidden %} <i class="bi bi-eye-slash" style="color:var(--text-3);font-size:0.8rem;"></i>{% endif %}</span>
+                                    <span class="badge bg-secondary me-2">{{ tbl.column_count }} cols</span>
+                                    <span class="badge bg-primary me-2">{{ tbl.measure_count }} measures</span>
+                                    <span class="badge bg-info">{{ tbl.mode }}</span>
+                                </button>
+                            </h2>
+                            <div id="tbl-{{ loop.index }}" class="accordion-collapse collapse">
+                                <div class="accordion-body p-0">
+                                    {% if tbl.columns %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-striped mb-0">
+                                            <thead><tr><th>{{ t('column') }}</th><th>{{ t('data_type') }}</th><th>{{ t('type') }}</th><th>{{ t('hidden') }}</th></tr></thead>
+                                            <tbody>
+                                                {% for col in tbl.columns %}
+                                                <tr>
+                                                    <td>{{ col.name }}{% if col.is_key %} <i class="bi bi-key" style="color:var(--accent);"></i>{% endif %}</td>
+                                                    <td><code>{{ col.data_type }}</code></td>
+                                                    <td>{{ col.type }}</td>
+                                                    <td>{% if col.is_hidden %}<i class="bi bi-eye-slash"></i>{% endif %}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% endif %}
+                                    {% if tbl.measures %}
+                                    <div class="p-3" style="border-top:1px solid var(--glass-border);">
+                                        <h6 style="font-weight:700;font-size:0.82rem;color:var(--accent);"><i class="bi bi-calculator me-1"></i>{{ t('doc_measures') }}</h6>
+                                        {% for m in tbl.measures %}
+                                        <div class="measure-block">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span style="font-weight:600;font-size:0.88rem;color:var(--text-1);">{{ m.name }}</span>
+                                                {% if m.format_string %}<code class="small">{{ m.format_string }}</code>{% endif %}
+                                            </div>
+                                            <pre class="mb-0"><code>{{ m.expression }}</code></pre>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Measure Dictionary -->
+            <div class="card mb-3 cascade-in">
+                <div class="card-header py-3">
+                    <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                        <i class="bi bi-calculator me-1" style="color:var(--accent);"></i>{{ t('doc_measures') }}
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    {% if documentation.measures %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr><th>{{ t('measure') }}</th><th>{{ t('table') }}</th><th>{{ t('expression') }}</th><th>{{ t('format') }}</th></tr></thead>
+                            <tbody>
+                                {% for m in documentation.measures %}
+                                <tr>
+                                    <td class="fw-semibold text-nowrap" style="color:var(--accent);">{{ m.name }}</td>
+                                    <td class="text-nowrap">{{ m.table }}</td>
+                                    <td><code class="small">{{ m.expression[:120] }}{% if m.expression|length > 120 %}...{% endif %}</code></td>
+                                    <td><code class="small">{{ m.format_string }}</code></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="p-3 text-center" style="color:var(--text-3);">No measures found</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Relationships -->
+            <div class="card mb-3 cascade-in">
+                <div class="card-header py-3">
+                    <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                        <i class="bi bi-link-45deg me-1" style="color:var(--accent);"></i>{{ t('doc_relationships') }}
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    {% if documentation.relationships %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr><th>{{ t('from') }}</th><th>{{ t('to') }}</th><th>{{ t('cardinality') }}</th><th>{{ t('cross_filter') }}</th><th>{{ t('active') }}</th></tr></thead>
+                            <tbody>
+                                {% for r in documentation.relationships %}
+                                <tr>
+                                    <td>{{ r.from_table }}[{{ r.from_column }}]</td>
+                                    <td>{{ r.to_table }}[{{ r.to_column }}]</td>
+                                    <td>{{ r.from_cardinality }}:{{ r.to_cardinality }}</td>
+                                    <td>{% if r.cross_filtering == 'bothDirections' %}<span style="color:var(--severity-warning);"><i class="bi bi-arrow-left-right"></i> Both</span>{% else %}<i class="bi bi-arrow-right" style="color:var(--accent);"></i> Single{% endif %}</td>
+                                    <td>{% if r.is_active %}<i class="bi bi-check-circle-fill" style="color:var(--grade-a);"></i>{% else %}<i class="bi bi-x-circle-fill" style="color:var(--severity-error);"></i>{% endif %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="p-3 text-center" style="color:var(--text-3);">No relationships found</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Data Sources -->
+            <div class="card mb-3 cascade-in">
+                <div class="card-header py-3">
+                    <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                        <i class="bi bi-database me-1" style="color:var(--accent);"></i>{{ t('doc_sources') }}
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    {% if documentation.sources %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr><th>{{ t('table') }}</th><th>{{ t('source_type') }}</th><th>{{ t('description') }}</th><th>{{ t('mode') }}</th></tr></thead>
+                            <tbody>
+                                {% for s in documentation.sources %}
+                                <tr>
+                                    <td>{{ s.table }}</td>
+                                    <td><span class="badge bg-primary">{{ s.source_type }}</span></td>
+                                    <td class="small" style="color:var(--text-2);">{{ s.detail }}</td>
+                                    <td>{{ s.mode }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="p-3 text-center" style="color:var(--text-3);">No data sources detected</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== DIAGRAM TAB (F3) ===== -->
+        <div class="tab-pane fade" id="tab-diagram">
+            <div class="card cascade-in">
+                <div class="card-header py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                            <i class="bi bi-diagram-3 me-1" style="color:var(--accent);"></i>{{ t('diagram_title') }}
+                        </h6>
+                        <div class="d-flex gap-2">
+                            <span class="d-flex align-items-center gap-1" style="font-size:0.72rem;color:var(--text-3);">
+                                <span style="width:12px;height:3px;background:#64748b;display:inline-block;border-radius:2px;"></span> {{ t('diagram_legend_normal') }}
+                            </span>
+                            <span class="d-flex align-items-center gap-1" style="font-size:0.72rem;color:var(--text-3);">
+                                <span style="width:12px;height:3px;background:#f87171;display:inline-block;border-radius:2px;"></span> {{ t('diagram_legend_bidir') }}
+                            </span>
+                            <span class="d-flex align-items-center gap-1" style="font-size:0.72rem;color:var(--text-3);">
+                                <span style="width:12px;height:3px;background:#fb923c;display:inline-block;border-radius:2px;"></span> {{ t('diagram_legend_m2m') }}
+                            </span>
+                            <span class="d-flex align-items-center gap-1" style="font-size:0.72rem;color:var(--text-3);">
+                                <span style="width:12px;height:3px;background:#64748b;display:inline-block;border-radius:2px;border-top:1px dashed #64748b;"></span> {{ t('diagram_legend_inactive') }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0" style="position:relative;overflow:hidden;">
+                    <div id="diagram-container" style="min-height:550px;"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Branding Footer (for PDF export) -->
+    {% if branding_html and branding_html.footer %}
+    {{ branding_html.footer|safe }}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/animations.js') }}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/pdf-export.js') }}"></script>
+<script src="{{ url_for('static', filename='js/clipboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/findings-filter.js') }}"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="{{ url_for('static', filename='js/relationship-diagram.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lineage-tree.js') }}"></script>
+<script>
+    // Pass i18n to clipboard.js
+    window._i18n_copy = {{ t('copy_clipboard')|tojson }};
+
+    // Render diagram when tab is shown
+    var diagramRendered = false;
+    var diagramData = {{ diagram_data|tojson }};
+    document.querySelector('[data-bs-target="#tab-diagram"]').addEventListener('shown.bs.tab', function() {
+        if (!diagramRendered && diagramData.nodes.length > 0) {
+            renderRelationshipDiagram('diagram-container', diagramData);
+            diagramRendered = true;
+        }
+    });
+
+    // Render lineage tree
+    {% if lineage and lineage.has_lineage %}
+    var lineageData = {{ lineage|tojson }};
+    document.querySelector('[data-bs-target="#tab-docs"]').addEventListener('shown.bs.tab', function() {
+        var container = document.getElementById('lineage-container');
+        if (container && !container.hasChildNodes()) {
+            renderLineageTree('lineage-container', lineageData);
+        }
+    });
+    {% endif %}
+</script>
+{% endblock %}

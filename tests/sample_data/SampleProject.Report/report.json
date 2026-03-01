@@ -1,0 +1,47 @@
+{
+  "sections": [
+    {
+      "name": "Page1",
+      "displayName": "Sales Overview",
+      "visualContainers": [
+        {"config": "{\"singleVisual\":{\"visualType\":\"barChart\"},\"name\":\"v1\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"lineChart\"},\"name\":\"v2\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"card\"},\"name\":\"v3\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"slicer\"},\"name\":\"v4\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"tableEx\"},\"name\":\"v5\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"pieChart\"},\"name\":\"v6\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"map\"},\"name\":\"v7\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"card\"},\"name\":\"v8\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"barChart\"},\"name\":\"v9\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"lineChart\"},\"name\":\"v10\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"barChart\"},\"name\":\"v11\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"card\"},\"name\":\"v12\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"slicer\"},\"name\":\"v13\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"barChart\"},\"name\":\"v14\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"lineChart\"},\"name\":\"v15\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"card\"},\"name\":\"v16\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"slicer\"},\"name\":\"v17\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"barChart\"},\"name\":\"v18\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"lineChart\"},\"name\":\"v19\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"card\"},\"name\":\"v20\"}", "filters": "[]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"decompositionTreeVisual\"},\"name\":\"v21\"}", "filters": "[]"}
+      ]
+    },
+    {
+      "name": "Page2",
+      "displayName": "Customer Details",
+      "visualContainers": [
+        {"config": "{\"singleVisual\":{\"visualType\":\"tableEx\"},\"name\":\"v22\"}", "filters": "[{\"a\":1},{\"b\":2},{\"c\":3},{\"d\":4},{\"e\":5},{\"f\":6}]"},
+        {"config": "{\"singleVisual\":{\"visualType\":\"barChart\"},\"name\":\"v23\"}", "filters": "[]"}
+      ]
+    },
+    {
+      "name": "TooltipPage",
+      "displayName": "Sales Tooltip",
+      "config": "{\"isTooltipPage\":true}",
+      "visualContainers": [
+        {"config": "{\"singleVisual\":{\"visualType\":\"card\"},\"name\":\"v24\"}", "filters": "[]"}
+      ]
+    }
+  ]
+}

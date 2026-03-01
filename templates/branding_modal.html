@@ -1,0 +1,119 @@
+<!-- Branding Configuration Modal -->
+<div class="modal fade" id="brandingModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background:var(--bg-card);border:1px solid var(--glass-border);">
+            <div class="modal-header" style="border-bottom:1px solid var(--glass-border);">
+                <h5 class="modal-title" style="font-weight:700;color:var(--text-1);">
+                    <i class="bi bi-brush me-2" style="color:var(--accent);"></i>{{ t('branding_title') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="branding-form" method="post" action="{{ url_for('save_branding') }}" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <!-- Company Name -->
+                        <div class="col-12">
+                            <label class="form-label" style="font-weight:600;color:var(--text-2);font-size:0.85rem;">
+                                {{ t('branding_company') }}
+                            </label>
+                            <input type="text" name="company_name" class="form-control"
+                                   value="{{ branding.company_name }}"
+                                   style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);"
+                                   placeholder="My Company">
+                        </div>
+
+                        <!-- Logo Upload -->
+                        <div class="col-12">
+                            <label class="form-label" style="font-weight:600;color:var(--text-2);font-size:0.85rem;">
+                                {{ t('branding_logo') }}
+                            </label>
+                            <input type="file" name="logo" class="form-control" accept=".png,.jpg,.jpeg,.svg,.gif"
+                                   style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);">
+                            {% if branding.logo_path %}
+                            <div class="mt-2">
+                                <img src="{{ url_for('static', filename=branding.logo_path) }}" alt="Current logo"
+                                     style="max-height:40px;border-radius:4px;">
+                                <span class="ms-2 small" style="color:var(--text-3);">Current logo</span>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Colors -->
+                        <div class="col-6">
+                            <label class="form-label" style="font-weight:600;color:var(--text-2);font-size:0.85rem;">
+                                {{ t('branding_primary_color') }}
+                            </label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="color" name="primary_color" value="{{ branding.primary_color }}"
+                                       class="form-control form-control-color" style="width:50px;height:38px;">
+                                <input type="text" class="form-control" value="{{ branding.primary_color }}"
+                                       readonly style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);max-width:100px;">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" style="font-weight:600;color:var(--text-2);font-size:0.85rem;">
+                                {{ t('branding_secondary_color') }}
+                            </label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="color" name="secondary_color" value="{{ branding.secondary_color }}"
+                                       class="form-control form-control-color" style="width:50px;height:38px;">
+                                <input type="text" class="form-control" value="{{ branding.secondary_color }}"
+                                       readonly style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);max-width:100px;">
+                            </div>
+                        </div>
+
+                        <!-- Footer Text -->
+                        <div class="col-12">
+                            <label class="form-label" style="font-weight:600;color:var(--text-2);font-size:0.85rem;">
+                                {{ t('branding_footer') }}
+                            </label>
+                            <input type="text" name="footer_text" class="form-control"
+                                   value="{{ branding.footer_text }}"
+                                   style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);"
+                                   placeholder="Confidential - Internal Use Only">
+                        </div>
+
+                        <!-- Preview -->
+                        <div class="col-12">
+                            <label class="form-label" style="font-weight:600;color:var(--text-2);font-size:0.85rem;">
+                                {{ t('branding_preview') }}
+                            </label>
+                            <div id="branding-preview" class="p-3" style="background:white;border:1px solid var(--glass-border);border-radius:8px;">
+                                <div id="preview-header" style="display:flex;align-items:center;gap:0.8rem;padding-bottom:0.5rem;border-bottom:2px solid {{ branding.primary_color }};">
+                                    {% if branding.logo_path %}
+                                    <img src="{{ url_for('static', filename=branding.logo_path) }}" style="max-height:36px;">
+                                    {% endif %}
+                                    <span style="font-weight:700;color:{{ branding.primary_color }};">{{ branding.company_name or 'Company Name' }}</span>
+                                </div>
+                                <div style="padding:1rem 0;color:#333;font-size:0.85rem;">
+                                    PBI Analyzer Report — Sample Preview
+                                </div>
+                                {% if branding.footer_text %}
+                                <div style="text-align:center;font-size:0.72rem;color:#888;border-top:1px solid #ddd;padding-top:0.4rem;">
+                                    {{ branding.footer_text }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid var(--glass-border);">
+                    <button type="button" class="btn-ghost" data-bs-dismiss="modal">{{ t('rules_reset') }}</button>
+                    <button type="submit" class="btn-neon">
+                        <i class="bi bi-check-lg me-1"></i>{{ t('branding_save') }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Sync color picker to text display
+document.querySelectorAll('input[type="color"]').forEach(function(picker) {
+    picker.addEventListener('input', function() {
+        var textInput = this.parentElement.querySelector('input[type="text"]');
+        if (textInput) textInput.value = this.value;
+    });
+});
+</script>

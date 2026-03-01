@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="report-content" class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 style="font-weight:800;letter-spacing:-0.5px;color:var(--text-1);">
+                <i class="bi bi-grid-3x3-gap me-2" style="color:var(--accent);"></i>{{ t('consolidated_title') }}
+            </h2>
+            <div class="mt-1" style="color:var(--text-2);">
+                {{ multi.total_files }} {{ t('files_selected') }} &mdash;
+                Avg: <strong>{{ multi.average_score }}</strong>/100
+            </div>
+        </div>
+        <a href="{{ url_for('index', lang=lang) }}" class="btn-ghost">
+            <i class="bi bi-arrow-left me-1"></i>{{ t('back') }}
+        </a>
+    </div>
+
+    <!-- Ranking Table -->
+    <div class="card mb-4 cascade-in">
+        <div class="card-header py-3">
+            <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                <i class="bi bi-trophy me-1" style="color:var(--accent);"></i>{{ t('ranking') }}
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>{{ t('results_title') }}</th>
+                            <th>{{ t('health_score') }}</th>
+                            <th>{{ t('total_tables') }}</th>
+                            <th>{{ t('total_measures') }}</th>
+                            <th>{{ t('findings_title') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in multi.ranking %}
+                        <tr>
+                            <td>
+                                {% if item.rank == 1 %}<i class="bi bi-trophy-fill" style="color:var(--grade-a);"></i>
+                                {% elif item.rank == 2 %}<i class="bi bi-trophy-fill" style="color:var(--grade-b);"></i>
+                                {% elif item.rank == 3 %}<i class="bi bi-trophy-fill" style="color:var(--grade-c);"></i>
+                                {% else %}{{ item.rank }}{% endif %}
+                            </td>
+                            <td><strong style="color:var(--text-1);">{{ item.project_name }}</strong></td>
+                            <td>
+                                <span class="fw-bold grade-{{ item.grade|lower }}" style="font-size:1.1rem;">{{ item.total_score }}</span>
+                                <span class="badge bg-{{ 'success' if item.grade == 'A' else 'primary' if item.grade == 'B' else 'warning' if item.grade == 'C' else 'danger' }}">{{ item.grade }}</span>
+                            </td>
+                            <td>{{ item.tables_count }}</td>
+                            <td>{{ item.measures_count }}</td>
+                            <td><span class="findings-count {{ 'has-issues' if item.findings_count > 0 else 'no-issues' }}">{{ item.findings_count }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Averages -->
+    <div class="card mb-4 cascade-in">
+        <div class="card-header py-3">
+            <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                <i class="bi bi-bar-chart-line me-1" style="color:var(--accent);"></i>Category Averages
+            </h6>
+        </div>
+        <div class="card-body">
+            {% set categories = [
+                ('data_model', 'cat_data_model', 'cat-model', 35),
+                ('dax', 'cat_dax', 'cat-dax', 25),
+                ('power_query', 'cat_power_query', 'cat-pq', 20),
+                ('report', 'cat_report', 'cat-report', 20)
+            ] %}
+            {% for cat_key, cat_label, cat_class, cat_max in categories %}
+            {% set avg = multi.category_averages.get(cat_key, 0) %}
+            {% set pct = (avg / cat_max * 100)|round if cat_max > 0 else 0 %}
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span style="font-weight:600;font-size:0.88rem;color:var(--text-1);">{{ t(cat_label) }}</span>
+                    <span style="font-weight:700;font-size:0.85rem;color:var(--text-2);">{{ avg }}/{{ cat_max }}</span>
+                </div>
+                <div class="cat-progress">
+                    <div class="cat-progress-fill {{ cat_class }}" style="width:{{ pct }}%;"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Individual results (expandable) -->
+    {% for result in multi.results %}
+    <div class="card mb-3 cascade-in">
+        <div class="card-header py-3">
+            <div class="d-flex justify-content-between align-items-center" data-bs-toggle="collapse" data-bs-target="#result-{{ loop.index }}" style="cursor:pointer;">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="fw-bold grade-{{ result.score.grade|lower }}" style="font-size:1.3rem;">{{ result.score.total_score }}</span>
+                    <div>
+                        <strong style="color:var(--text-1);">{{ result.project_name }}</strong>
+                        <div class="small" style="color:var(--text-3);">
+                            {{ result.findings|length }} findings &bull;
+                            {{ result.documentation.overview.total_tables }} tables
+                        </div>
+                    </div>
+                </div>
+                <i class="bi bi-chevron-down" style="color:var(--text-3);"></i>
+            </div>
+        </div>
+        <div id="result-{{ loop.index }}" class="collapse">
+            <div class="card-body">
+                {% if result.findings %}
+                <h6 style="font-weight:700;color:var(--text-1);margin-bottom:0.5rem;">{{ t('findings_title') }}</h6>
+                {% for f in result.findings[:10] %}
+                <div class="finding-item" style="padding:0.5rem 0;">
+                    <span class="severity-badge severity-{{ f.severity }}" style="font-size:0.6rem;">{{ f.severity }}</span>
+                    <span class="rule-id ms-2">{{ f.rule_id }}</span>
+                    <span style="font-size:0.85rem;color:var(--text-1);margin-left:0.5rem;">{{ f.message }}</span>
+                </div>
+                {% endfor %}
+                {% if result.findings|length > 10 %}
+                <div class="small mt-2" style="color:var(--text-3);">...and {{ result.findings|length - 10 }} more</div>
+                {% endif %}
+                {% else %}
+                <div style="color:var(--accent);">{{ t('no_findings') }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

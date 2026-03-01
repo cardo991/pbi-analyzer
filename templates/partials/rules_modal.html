@@ -1,0 +1,138 @@
+<!-- Rules Configuration Modal -->
+<div class="modal fade" id="rulesConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content" style="background:var(--bg-card);border:1px solid var(--glass-border);border-radius:14px;">
+            <div class="modal-header" style="background:var(--accent-soft);border-bottom:1px solid var(--glass-border);border-radius:14px 14px 0 0;">
+                <h5 class="modal-title" style="font-weight:700;color:var(--text-1);">
+                    <i class="bi bi-gear me-2" style="color:var(--accent);"></i>{{ t('rules_config_title') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(0.5);"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Threshold settings -->
+                <h6 style="font-weight:700;color:var(--accent);margin-bottom:0.8rem;">
+                    <i class="bi bi-sliders me-1"></i> Thresholds
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label small" style="color:var(--text-2);">{{ t('threshold_max_visuals') }}</label>
+                        <input type="number" class="form-control threshold-input" data-threshold="max_visuals" data-default="20" value="20" min="1" max="100" style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small" style="color:var(--text-2);">{{ t('threshold_max_pages') }}</label>
+                        <input type="number" class="form-control threshold-input" data-threshold="max_pages" data-default="15" value="15" min="1" max="100" style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small" style="color:var(--text-2);">{{ t('threshold_max_steps') }}</label>
+                        <input type="number" class="form-control threshold-input" data-threshold="max_steps" data-default="25" value="25" min="1" max="200" style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small" style="color:var(--text-2);">{{ t('threshold_complex_measure') }}</label>
+                        <input type="number" class="form-control threshold-input" data-threshold="complex_measure" data-default="300" value="300" min="50" max="2000" style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);">
+                    </div>
+                </div>
+
+                <!-- Rules toggles -->
+                <h6 style="font-weight:700;color:var(--accent);margin-bottom:0.8rem;">
+                    <i class="bi bi-list-check me-1"></i> Rules
+                </h6>
+
+                {% set rule_groups = [
+                    ('cat_data_model', 'data_model', [
+                        ('DM-001', 'Bidirectional cross-filtering', 'warning'),
+                        ('DM-002', 'Many-to-many relationships', 'warning'),
+                        ('DM-003', 'Disconnected tables', 'warning'),
+                        ('DM-004', 'Missing date table', 'warning'),
+                        ('DM-005', 'Calculated column with aggregation', 'error'),
+                        ('DM-006', 'Snowflake schema', 'info'),
+                        ('DM-007', 'High cardinality columns', 'info'),
+                        ('DM-008', 'Mixed storage modes', 'info'),
+                        ('DM-009', 'Inactive relationships', 'warning'),
+                        ('DM-010', 'Fact table without measures', 'info')
+                    ]),
+                    ('cat_dax', 'dax', [
+                        ('DAX-001', 'Nested CALCULATE', 'warning'),
+                        ('DAX-002', 'Unnecessary iterator', 'warning'),
+                        ('DAX-003', 'Missing VAR for repeats', 'info'),
+                        ('DAX-004', 'Redundant IF TRUE/FALSE', 'info'),
+                        ('DAX-005', 'COUNTROWS(VALUES) pattern', 'info'),
+                        ('DAX-006', 'Complex without VAR', 'info'),
+                        ('DAX-007', 'Missing format string', 'info'),
+                        ('DAX-008', 'Naming conventions', 'info'),
+                        ('DAX-009', 'FILTER on entire table', 'warning'),
+                        ('DAX-010', 'IF(ISBLANK) pattern', 'info'),
+                        ('DAX-011', 'Division without DIVIDE', 'warning')
+                    ]),
+                    ('cat_power_query', 'power_query', [
+                        ('PQ-001', 'Query folding breakers', 'warning'),
+                        ('PQ-002', 'Table.Buffer usage', 'warning'),
+                        ('PQ-003', 'Sort before filter', 'info'),
+                        ('PQ-004', 'Hardcoded connections', 'warning'),
+                        ('PQ-005', 'Excessive steps', 'info'),
+                        ('PQ-006', 'Data source detection', 'info'),
+                        ('PQ-007', 'Multiple type conversions', 'info')
+                    ]),
+                    ('cat_report', 'report', [
+                        ('RP-001', 'Too many visuals/page', 'warning'),
+                        ('RP-002', 'Too many pages', 'info'),
+                        ('RP-003', 'Heavy visual types', 'info'),
+                        ('RP-004', 'Too many filters/visual', 'info'),
+                        ('RP-005', 'Unhidden tooltip/drillthrough', 'info'),
+                        ('RP-006', 'Missing alt text', 'info'),
+                        ('BK-001', 'Orphan bookmark', 'info'),
+                        ('BK-002', 'Bookmark targets missing page', 'info'),
+                        ('BK-003', 'Too many bookmarks', 'info')
+                    ]),
+                    ('cat_data_model', 'data_model', [
+                        ('SEC-001', 'Table without RLS protection', 'warning'),
+                        ('SEC-002', 'Empty role definition', 'warning'),
+                        ('SEC-003', 'Expensive DAX in RLS filter', 'info'),
+                        ('SEC-004', 'Sensitive column not hidden', 'error'),
+                        ('SEC-005', 'HTTP data source', 'warning'),
+                        ('SEC-006', 'Credentials in source', 'warning'),
+                        ('SEC-007', 'Table without filtering', 'info'),
+                        ('NC-001', 'Measure naming convention', 'info'),
+                        ('NC-002', 'Column naming inconsistency', 'info'),
+                        ('NC-003', 'Table name special chars', 'info'),
+                        ('PERF-001', 'Not a star schema', 'warning'),
+                        ('PERF-002', 'Too many bidir relationships', 'warning'),
+                        ('PERF-003', 'Too many columns/table', 'info'),
+                        ('PERF-004', 'Calc column as measure', 'warning'),
+                        ('PERF-005', 'DirectQuery mixed with Import', 'info')
+                    ])
+                ] %}
+
+                {% for cat_label, cat_key, rules in rule_groups %}
+                <div class="mb-3">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="cat-icon cat-{{ cat_key.replace('data_model','model').replace('power_query','pq') }}">
+                            <i class="bi {{ 'bi-diagram-3' if 'model' in cat_key else 'bi-calculator' if 'dax' in cat_key else 'bi-funnel' if 'query' in cat_key else 'bi-layout-text-window-reverse' }}"></i>
+                        </span>
+                        <strong style="color:var(--text-1);font-size:0.9rem;">{{ t(cat_label) }}</strong>
+                    </div>
+                    {% for rule_id, desc, severity in rules %}
+                    <div class="d-flex align-items-center justify-content-between py-1 px-2" style="border-bottom:1px solid var(--glass-border);">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input rule-toggle" type="checkbox" checked data-rule="{{ rule_id }}" id="rule-{{ rule_id }}">
+                            </div>
+                            <span class="rule-id">{{ rule_id }}</span>
+                            <span style="font-size:0.82rem;color:var(--text-2);">{{ desc }}</span>
+                        </div>
+                        <span class="severity-badge severity-{{ severity }}" style="font-size:0.6rem;">{{ severity }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--glass-border);">
+                <button type="button" class="btn-ghost" id="rules-enable-all">{{ t('rules_enable_all') }}</button>
+                <button type="button" class="btn-ghost" id="rules-disable-all">{{ t('rules_disable_all') }}</button>
+                <button type="button" class="btn-ghost" id="rules-reset">{{ t('rules_reset') }}</button>
+                <button type="button" class="btn-neon" id="rules-apply">
+                    <i class="bi bi-check-lg me-1"></i><span>{{ t('rules_apply') }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

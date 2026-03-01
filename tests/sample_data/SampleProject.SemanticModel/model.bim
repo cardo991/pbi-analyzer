@@ -1,0 +1,299 @@
+{
+  "name": "SampleProject",
+  "compatibilityLevel": 1567,
+  "model": {
+    "culture": "en-US",
+    "defaultMode": "import",
+    "tables": [
+      {
+        "name": "Sales",
+        "columns": [
+          {
+            "name": "SalesID",
+            "dataType": "int64",
+            "sourceColumn": "SalesID",
+            "isKey": true
+          },
+          {
+            "name": "DateKey",
+            "dataType": "int64",
+            "sourceColumn": "DateKey"
+          },
+          {
+            "name": "ProductKey",
+            "dataType": "int64",
+            "sourceColumn": "ProductKey"
+          },
+          {
+            "name": "CustomerKey",
+            "dataType": "int64",
+            "sourceColumn": "CustomerKey"
+          },
+          {
+            "name": "Amount",
+            "dataType": "double",
+            "sourceColumn": "Amount"
+          },
+          {
+            "name": "Quantity",
+            "dataType": "int64",
+            "sourceColumn": "Quantity"
+          },
+          {
+            "name": "OrderDescription",
+            "dataType": "string",
+            "sourceColumn": "OrderDescription"
+          },
+          {
+            "name": "OrderURL",
+            "dataType": "string",
+            "sourceColumn": "OrderURL"
+          },
+          {
+            "name": "CalcProfit",
+            "dataType": "double",
+            "type": "calculated",
+            "expression": "CALCULATE(SUM(Sales[Amount]) - SUM(Sales[Quantity]) * 10)"
+          }
+        ],
+        "measures": [
+          {
+            "name": "Total Sales",
+            "expression": "SUMX(Sales, Sales[Amount])",
+            "formatString": "$#,##0.00"
+          },
+          {
+            "name": "Total Quantity",
+            "expression": "SUM(Sales[Quantity])"
+          },
+          {
+            "name": "Avg Sales Per Customer",
+            "expression": "CALCULATE(CALCULATE([Total Sales], FILTER(Customer, Customer[Segment] = \"Enterprise\")))",
+            "formatString": "$#,##0.00"
+          },
+          {
+            "name": "Sales YoY %",
+            "expression": "VAR CurrentYear = [Total Sales]\nVAR PreviousYear = CALCULATE([Total Sales], DATEADD('Calendar'[Date], -1, YEAR))\nRETURN\nIF(ISBLANK(PreviousYear), BLANK(), (CurrentYear - PreviousYear) / PreviousYear)",
+            "formatString": "0.00%"
+          },
+          {
+            "name": "Is High Value",
+            "expression": "IF([Total Sales] > 1000, TRUE, FALSE)"
+          },
+          {
+            "name": "Unique Customers",
+            "expression": "COUNTROWS(VALUES(Customer[CustomerKey]))"
+          },
+          {
+            "name": "Profit Margin",
+            "expression": "([Total Sales] - [Total Quantity] * 10) / [Total Sales]"
+          },
+          {
+            "name": "COMPLEX_METRIC_SALES_TOTAL",
+            "expression": "VAR x = [Total Sales] RETURN x"
+          },
+          {
+            "name": "Enterprise Sales",
+            "expression": "CALCULATE([Total Sales], FILTER(Customer, Customer[Segment] = \"Enterprise\"))"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "Sales-Partition",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": [
+                "let",
+                "    Source = Sql.Database(\"myserver.database.windows.net\", \"SalesDB\"),",
+                "    dbo_Sales = Source{[Schema=\"dbo\",Item=\"Sales\"]}[Data],",
+                "    #\"Sorted Rows\" = Table.Sort(dbo_Sales, {{\"Amount\", Order.Descending}}),",
+                "    #\"Filtered Rows\" = Table.SelectRows(#\"Sorted Rows\", each [Amount] > 0),",
+                "    #\"Changed Type\" = Table.TransformColumnTypes(#\"Filtered Rows\", {{\"Amount\", type number}}),",
+                "    #\"Added Custom\" = Table.AddColumn(#\"Changed Type\", \"Custom\", each [Amount] * 1.1),",
+                "    #\"Changed Type2\" = Table.TransformColumnTypes(#\"Added Custom\", {{\"Custom\", type number}})",
+                "in",
+                "    #\"Changed Type2\""
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "Product",
+        "columns": [
+          {
+            "name": "ProductKey",
+            "dataType": "int64",
+            "sourceColumn": "ProductKey",
+            "isKey": true
+          },
+          {
+            "name": "ProductName",
+            "dataType": "string",
+            "sourceColumn": "ProductName"
+          },
+          {
+            "name": "CategoryKey",
+            "dataType": "int64",
+            "sourceColumn": "CategoryKey"
+          },
+          {
+            "name": "Price",
+            "dataType": "double",
+            "sourceColumn": "Price"
+          }
+        ],
+        "measures": [],
+        "partitions": [
+          {
+            "name": "Product-Partition",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": "let\n    Source = Sql.Database(\"myserver.database.windows.net\", \"SalesDB\"),\n    dbo_Product = Source{[Schema=\"dbo\",Item=\"Product\"]}[Data]\nin\n    dbo_Product"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Category",
+        "columns": [
+          {
+            "name": "CategoryKey",
+            "dataType": "int64",
+            "sourceColumn": "CategoryKey",
+            "isKey": true
+          },
+          {
+            "name": "CategoryName",
+            "dataType": "string",
+            "sourceColumn": "CategoryName"
+          }
+        ],
+        "measures": [],
+        "partitions": [
+          {
+            "name": "Category-Partition",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": "let\n    Source = Excel.Workbook(File.Contents(\"C:\\Data\\Categories.xlsx\"), null, true),\n    Sheet1 = Source{[Item=\"Sheet1\"]}[Data]\nin\n    Sheet1"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Customer",
+        "columns": [
+          {
+            "name": "CustomerKey",
+            "dataType": "int64",
+            "sourceColumn": "CustomerKey",
+            "isKey": true
+          },
+          {
+            "name": "CustomerName",
+            "dataType": "string",
+            "sourceColumn": "CustomerName"
+          },
+          {
+            "name": "Segment",
+            "dataType": "string",
+            "sourceColumn": "Segment"
+          },
+          {
+            "name": "Email",
+            "dataType": "string",
+            "sourceColumn": "Email"
+          }
+        ],
+        "measures": [],
+        "partitions": [
+          {
+            "name": "Customer-Partition",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": "let\n    Source = Sql.Database(\"myserver.database.windows.net\", \"SalesDB\"),\n    dbo_Customer = Source{[Schema=\"dbo\",Item=\"Customer\"]}[Data]\nin\n    dbo_Customer"
+            }
+          }
+        ]
+      },
+      {
+        "name": "OrphanTable",
+        "columns": [
+          {
+            "name": "ID",
+            "dataType": "int64",
+            "sourceColumn": "ID"
+          },
+          {
+            "name": "Value",
+            "dataType": "string",
+            "sourceColumn": "Value"
+          }
+        ],
+        "measures": [],
+        "partitions": [
+          {
+            "name": "Orphan-Partition",
+            "mode": "directQuery",
+            "source": {
+              "type": "m",
+              "expression": "let\n    Source = Web.Contents(\"https://api.example.com/data\")\nin\n    Source"
+            }
+          }
+        ]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "rel-sales-product",
+        "fromTable": "Sales",
+        "fromColumn": "ProductKey",
+        "toTable": "Product",
+        "toColumn": "ProductKey",
+        "fromCardinality": "many",
+        "toCardinality": "one",
+        "crossFilteringBehavior": "oneDirection",
+        "isActive": true
+      },
+      {
+        "name": "rel-product-category",
+        "fromTable": "Product",
+        "fromColumn": "CategoryKey",
+        "toTable": "Category",
+        "toColumn": "CategoryKey",
+        "fromCardinality": "many",
+        "toCardinality": "one",
+        "crossFilteringBehavior": "bothDirections",
+        "isActive": true
+      },
+      {
+        "name": "rel-sales-customer",
+        "fromTable": "Sales",
+        "fromColumn": "CustomerKey",
+        "toTable": "Customer",
+        "toColumn": "CustomerKey",
+        "fromCardinality": "many",
+        "toCardinality": "one",
+        "crossFilteringBehavior": "oneDirection",
+        "isActive": true
+      },
+      {
+        "name": "rel-sales-customer-inactive",
+        "fromTable": "Sales",
+        "fromColumn": "DateKey",
+        "toTable": "Customer",
+        "toColumn": "CustomerKey",
+        "fromCardinality": "many",
+        "toCardinality": "one",
+        "crossFilteringBehavior": "oneDirection",
+        "isActive": false
+      }
+    ],
+    "expressions": [],
+    "roles": []
+  }
+}
