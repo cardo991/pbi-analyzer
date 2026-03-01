@@ -143,8 +143,6 @@ a:hover { color: var(--accent); opacity: 0.85; }
 .navbar-logo {
     height: 22px;
     width: auto;
-    color: var(--accent);
-    transition: color 0.3s ease;
 }
 .brand-separator {
     width: 1px;
@@ -157,8 +155,7 @@ a:hover { color: var(--accent); opacity: 0.85; }
 .hero-logo {
     height: 56px;
     width: auto;
-    color: var(--accent);
-    transition: transform 0.4s ease, color 0.3s ease;
+    transition: transform 0.4s ease;
 }
 .hero-logo:hover {
     transform: scale(1.05);
