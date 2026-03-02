@@ -293,5 +293,31 @@
   "editor_pq_title": "Power Query Editor",
   "editor_pq_steps": "steps",
   "editor_pq_show_steps": "Show Steps",
-  "editor_pq_m_code": "M Code"
+  "editor_pq_m_code": "M Code",
+
+  "report_health_title": "Report Health",
+  "rh_visuals_per_page": "Avg Visuals/Page",
+  "rh_filters_per_page": "Avg Filters/Page",
+  "rh_total_pages": "Total Pages",
+  "rh_total_tables": "Total Tables",
+  "rh_total_measures": "Total Measures",
+  "rh_relationships": "Relationships",
+  "rh_custom_visuals": "Custom Visuals",
+  "rh_visual_types": "Visual Types Breakdown",
+  "rh_count": "Count",
+  "rh_distribution": "Distribution",
+  "rh_no_visuals": "No visuals found in the report.",
+  "rh_no_custom": "No custom or marketplace visuals detected.",
+  "rh_summary": "Summary",
+  "rh_total_visuals": "Total Visuals",
+  "rh_avg_visuals": "Avg Visuals/Page",
+  "rh_max_visuals": "Max Visuals/Page",
+  "rh_per_page": "Per-Page Breakdown",
+  "rh_page_name": "Page",
+  "rh_visuals": "Visuals",
+  "rh_filters": "Filters",
+  "rh_visibility": "Visibility",
+  "rh_top_types": "Top Visual Types",
+
+  "export_json": "Download JSON"
 }

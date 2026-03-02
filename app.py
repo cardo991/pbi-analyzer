@@ -45,14 +45,16 @@ from database import init_db, save_analysis, get_all_analyses, get_analysis, del
 from config import MAX_UPLOAD_SIZE_MB
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 # Initialize database
 init_db()
 
-# Ensure uploads directory exists
-os.makedirs(os.path.join(os.path.dirname(__file__), "uploads", "pbip"), exist_ok=True)
+# Ensure uploads directory exists (use /tmp on Vercel)
+_IS_VERCEL = bool(os.environ.get("VERCEL"))
+_UPLOADS_BASE = "/tmp/uploads" if _IS_VERCEL else os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(os.path.join(_UPLOADS_BASE, "pbip"), exist_ok=True)
 
 # Register API blueprint
 from api import api_bp
@@ -222,6 +224,9 @@ def _run_analysis(file_obj, lang, disabled_rules=None, thresholds=None):
     branding = get_branding_config()
     branding_html = generate_branding_html(branding)
 
+    # Report health stats
+    report_stats = _build_report_stats(result.report, result.semantic_model)
+
     # Build editor data for full-mode PBIP analyses
     editor_data = None
     if analysis_mode == "full":
@@ -247,6 +252,7 @@ def _run_analysis(file_obj, lang, disabled_rules=None, thresholds=None):
         "performance": performance,
         "branding": branding,
         "branding_html": branding_html,
+        "report_stats": report_stats,
         "file_hash": file_hash if 'file_hash' in dir() else "",
         "file_size": file_size if 'file_size' in dir() else 0,
         "analysis_mode": analysis_mode,
@@ -292,6 +298,105 @@ def _build_diagram_data(model):
             })
 
     return {"nodes": nodes, "links": links}
+
+
+def _build_report_stats(report, model):
+    """Build report health statistics panel data (inspired by powerbi_analyzer)."""
+    # Per-page metrics
+    pages_data = []
+    all_visual_types = {}
+    custom_visuals = []
+    total_filters = 0
+
+    for page in report.pages:
+        vis_count = len(page.visuals)
+        filter_count = len(page.filters) if page.filters else 0
+        total_filters += filter_count
+
+        # Count visual types
+        page_types = {}
+        for v in page.visuals:
+            vtype = v.visual_type or "unknown"
+            all_visual_types[vtype] = all_visual_types.get(vtype, 0) + 1
+            page_types[vtype] = page_types.get(vtype, 0) + 1
+
+            # Detect custom/marketplace visuals (non-standard types)
+            if vtype and "_" in vtype and not vtype.startswith("text"):
+                if vtype not in [cv["type"] for cv in custom_visuals]:
+                    custom_visuals.append({"type": vtype, "page": page.display_name or page.name})
+
+        pages_data.append({
+            "name": page.display_name or page.name,
+            "visuals": vis_count,
+            "filters": filter_count,
+            "visibility": page.visibility,
+            "is_tooltip": page.is_tooltip,
+            "has_drillthrough": page.has_drillthrough,
+            "visual_types": page_types,
+        })
+
+    total_visuals = sum(p["visuals"] for p in pages_data)
+    total_pages = len(pages_data)
+    avg_visuals = round(total_visuals / total_pages, 1) if total_pages else 0
+    max_visuals = max((p["visuals"] for p in pages_data), default=0)
+    avg_filters = round(total_filters / total_pages, 1) if total_pages else 0
+    max_filters = max((p["filters"] for p in pages_data), default=0)
+
+    # Model stats
+    total_tables = len([t for t in model.tables
+                        if not t.name.startswith("DateTableTemplate")
+                        and not t.name.startswith("LocalDateTable")])
+    total_measures = sum(len(t.measures) for t in model.tables)
+    total_columns = sum(len(t.columns) for t in model.tables
+                        if not t.name.startswith("DateTableTemplate")
+                        and not t.name.startswith("LocalDateTable"))
+    total_relationships = len(model.relationships)
+
+    # Sort visual types by count
+    sorted_types = sorted(all_visual_types.items(), key=lambda x: -x[1])
+
+    # Health scores per metric (traffic light)
+    health = []
+    health.append(_metric_health("visuals_per_page", avg_visuals, 10, 15, 20))
+    health.append(_metric_health("filters_per_page", avg_filters, 5, 8, 12))
+    health.append(_metric_health("total_pages", total_pages, 10, 20, 30))
+    health.append(_metric_health("total_tables", total_tables, 15, 30, 50))
+    health.append(_metric_health("total_measures", total_measures, 30, 60, 100))
+    health.append(_metric_health("relationships", total_relationships, 20, 40, 60))
+    health.append(_metric_health("custom_visuals", len(custom_visuals), 3, 5, 8))
+
+    return {
+        "pages": pages_data,
+        "total_pages": total_pages,
+        "total_visuals": total_visuals,
+        "avg_visuals_per_page": avg_visuals,
+        "max_visuals_per_page": max_visuals,
+        "total_filters": total_filters,
+        "avg_filters_per_page": avg_filters,
+        "max_filters_per_page": max_filters,
+        "visual_types": sorted_types,
+        "custom_visuals": custom_visuals,
+        "total_tables": total_tables,
+        "total_measures": total_measures,
+        "total_columns": total_columns,
+        "total_relationships": total_relationships,
+        "health": health,
+    }
+
+
+def _metric_health(name, value, good, warning, critical):
+    """Evaluate a metric against thresholds. Returns traffic-light status."""
+    if value <= good:
+        status = "good"
+        score = 100
+    elif value <= warning:
+        status = "warning"
+        score = 70
+    else:
+        status = "critical"
+        score = 30
+    return {"name": name, "value": value, "status": status, "score": score,
+            "good": good, "warning": warning, "critical": critical}
 
 
 def _build_editor_data(model, dax_improvements, pq_findings=None):
@@ -470,6 +575,7 @@ def analyze():
                 theme_analysis=result.get("theme_analysis"),
                 diagram_data=result.get("diagram_data"),
                 performance=result.get("performance"),
+                report_stats=result.get("report_stats"),
                 analysis_mode=result.get("analysis_mode", "full"),
                 editor_data=result.get("editor_data"),
             )
@@ -481,7 +587,7 @@ def analyze():
         source_zip_path = ""
         if row_id and tmp_path and os.path.exists(tmp_path) and result.get("analysis_mode") == "full":
             import shutil
-            dest = os.path.join(os.path.dirname(__file__), "uploads", "pbip", f"{row_id}.zip")
+            dest = os.path.join(_UPLOADS_BASE, "pbip", f"{row_id}.zip")
             shutil.copy2(tmp_path, dest)
             source_zip_path = f"pbip/{row_id}.zip"
             # Update DB with ZIP path
@@ -525,6 +631,7 @@ def analyze():
             theme_analysis=result["theme_analysis"],
             diagram_data=result["diagram_data"],
             performance=result["performance"],
+            report_stats=result.get("report_stats"),
             branding=result.get("branding", {}),
             branding_html=result.get("branding_html", {}),
             analysis_mode=result.get("analysis_mode", "full"),
@@ -615,6 +722,7 @@ def history_detail(id):
         theme_analysis=data.get("theme_analysis"),
         diagram_data=data.get("diagram_data") or {"nodes": [], "links": []},
         performance=data.get("performance"),
+        report_stats=data.get("report_stats"),
         branding=branding,
         branding_html=branding_html,
         analysis_mode=data.get("analysis_mode", "full"),
@@ -648,7 +756,7 @@ def editor_apply(id):
     if not data or not data.get("source_zip_path"):
         return jsonify({"error": "No source ZIP available for this analysis"}), 404
 
-    zip_path = os.path.join(os.path.dirname(__file__), "uploads", data["source_zip_path"])
+    zip_path = os.path.join(_UPLOADS_BASE, data["source_zip_path"])
     if not os.path.exists(zip_path):
         return jsonify({"error": "Source ZIP file not found"}), 404
 
@@ -786,6 +894,51 @@ def export_markdown():
         as_attachment=True,
         download_name=filename,
     )
+
+
+@app.route("/export/json")
+def export_json():
+    """Export analysis as JSON."""
+    analysis_id = request.args.get("id")
+
+    if analysis_id:
+        data = get_analysis(int(analysis_id))
+    else:
+        analyses = get_all_analyses()
+        if not analyses:
+            return jsonify({"error": "No analyses found"}), 404
+        data = get_analysis(analyses[0]["id"])
+
+    if not data:
+        return jsonify({"error": "Analysis not found"}), 404
+
+    # Build clean export dict
+    score = {
+        "total_score": data.get("total_score", 0),
+        "grade": data.get("grade", "F"),
+        "category_scores": data.get("category_scores", {}),
+    }
+
+    export = {
+        "project_name": data.get("project_name", ""),
+        "analyzed_at": data.get("analyzed_at", ""),
+        "model_format": data.get("model_format", ""),
+        "report_format": data.get("report_format", ""),
+        "analysis_mode": data.get("analysis_mode", "full"),
+        "score": score,
+        "findings": data.get("findings", []),
+        "documentation": data.get("documentation", {}),
+        "kpi_suggestions": data.get("kpi_suggestions", []),
+        "dax_improvements": data.get("dax_improvements", []),
+        "exec_summary": data.get("exec_summary"),
+        "dax_complexity": data.get("dax_complexity"),
+        "unused_measures": data.get("unused_measures"),
+        "performance": data.get("performance"),
+        "report_stats": data.get("report_stats"),
+        "theme_analysis": data.get("theme_analysis"),
+    }
+
+    return jsonify(export)
 
 
 @app.route("/diff", methods=["POST"])

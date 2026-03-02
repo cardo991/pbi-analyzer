@@ -35,6 +35,9 @@
             <a href="{{ url_for('export_markdown', lang=lang) }}" class="btn-ghost">
                 <i class="bi bi-filetype-md me-1"></i>{{ t('download_markdown') }}
             </a>
+            <a href="{{ url_for('export_json') }}{% if analysis_id %}?id={{ analysis_id }}{% endif %}" class="btn-ghost">
+                <i class="bi bi-filetype-json me-1"></i>{{ t('export_json') }}
+            </a>
         </div>
     </div>
 
@@ -169,6 +172,13 @@
                 <i class="bi bi-diagram-3 me-1"></i>{{ t('diagram_title') }}
             </button>
         </li>
+        {% if report_stats %}
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-report-health">
+                <i class="bi bi-heart-pulse me-1"></i>{{ t('report_health_title') }}
+            </button>
+        </li>
+        {% endif %}
         {% if editor_data and analysis_mode == "full" %}
         <li class="nav-item">
             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-editor">
@@ -679,6 +689,186 @@
                 </div>
             </div>
         </div>
+
+        {% if report_stats %}
+        <!-- ===== REPORT HEALTH TAB ===== -->
+        <div class="tab-pane fade" id="tab-report-health">
+
+            <!-- Health Traffic Lights -->
+            <div class="row g-3 mb-4">
+                {% for h in report_stats.health %}
+                <div class="col-6 col-md-3">
+                    <div class="card h-100 text-center py-3">
+                        <div class="mb-1">
+                            {% if h.status == 'good' %}
+                            <i class="bi bi-check-circle-fill" style="font-size:1.5rem;color:#22c55e;"></i>
+                            {% elif h.status == 'warning' %}
+                            <i class="bi bi-exclamation-triangle-fill" style="font-size:1.5rem;color:#f59e0b;"></i>
+                            {% else %}
+                            <i class="bi bi-x-circle-fill" style="font-size:1.5rem;color:#ef4444;"></i>
+                            {% endif %}
+                        </div>
+                        <div style="font-size:1.6rem;font-weight:800;color:var(--text-1);">{{ h.value }}</div>
+                        <div style="font-size:0.78rem;color:var(--text-3);">{{ t('rh_' + h.name) }}</div>
+                        <div style="font-size:0.65rem;color:var(--text-4);margin-top:2px;">
+                            <span style="color:#22c55e;">&le;{{ h.good }}</span>
+                            <span class="mx-1">|</span>
+                            <span style="color:#f59e0b;">&le;{{ h.warning }}</span>
+                            <span class="mx-1">|</span>
+                            <span style="color:#ef4444;">&gt;{{ h.warning }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Visual Types Breakdown -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 style="font-weight:700;color:var(--text-1);margin-bottom:1rem;">
+                                <i class="bi bi-pie-chart me-1" style="color:var(--accent);"></i>{{ t('rh_visual_types') }}
+                            </h6>
+                            {% if report_stats.visual_types %}
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0" style="color:var(--text-1);">
+                                    <thead><tr>
+                                        <th style="color:var(--text-3);font-size:0.75rem;">{{ t('type') }}</th>
+                                        <th class="text-end" style="color:var(--text-3);font-size:0.75rem;">{{ t('rh_count') }}</th>
+                                        <th style="color:var(--text-3);font-size:0.75rem;width:50%;">{{ t('rh_distribution') }}</th>
+                                    </tr></thead>
+                                    <tbody>
+                                    {% for vtype, count in report_stats.visual_types[:15] %}
+                                    <tr>
+                                        <td style="font-size:0.82rem;">{{ vtype }}</td>
+                                        <td class="text-end" style="font-size:0.82rem;font-weight:600;">{{ count }}</td>
+                                        <td>
+                                            <div class="progress" style="height:6px;background:var(--glass-bg);">
+                                                <div class="progress-bar" style="width:{{ (count / report_stats.total_visuals * 100)|round(1) }}%;background:var(--accent);"></div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <p style="color:var(--text-3);font-size:0.85rem;">{{ t('rh_no_visuals') }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Custom Visuals -->
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 style="font-weight:700;color:var(--text-1);margin-bottom:1rem;">
+                                <i class="bi bi-puzzle me-1" style="color:var(--accent);"></i>{{ t('rh_custom_visuals') }}
+                                <span class="badge bg-secondary ms-1">{{ report_stats.custom_visuals|length }}</span>
+                            </h6>
+                            {% if report_stats.custom_visuals %}
+                            <div class="list-group list-group-flush">
+                                {% for cv in report_stats.custom_visuals %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center" style="background:transparent;border-color:var(--glass-border);color:var(--text-1);">
+                                    <span style="font-size:0.82rem;"><i class="bi bi-box me-1"></i>{{ cv.type }}</span>
+                                    <span class="badge bg-secondary">{{ cv.page }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p style="color:var(--text-3);font-size:0.85rem;">{{ t('rh_no_custom') }}</p>
+                            {% endif %}
+
+                            <!-- Summary Stats -->
+                            <div class="mt-4 pt-3" style="border-top:1px solid var(--glass-border);">
+                                <h6 style="font-weight:700;color:var(--text-1);margin-bottom:0.8rem;">
+                                    <i class="bi bi-bar-chart me-1" style="color:var(--accent);"></i>{{ t('rh_summary') }}
+                                </h6>
+                                <div class="row g-2" style="font-size:0.82rem;">
+                                    <div class="col-6">
+                                        <div style="color:var(--text-3);">{{ t('total_pages') }}</div>
+                                        <div style="font-weight:700;color:var(--text-1);">{{ report_stats.total_pages }}</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div style="color:var(--text-3);">{{ t('rh_total_visuals') }}</div>
+                                        <div style="font-weight:700;color:var(--text-1);">{{ report_stats.total_visuals }}</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div style="color:var(--text-3);">{{ t('rh_avg_visuals') }}</div>
+                                        <div style="font-weight:700;color:var(--text-1);">{{ report_stats.avg_visuals_per_page }}</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div style="color:var(--text-3);">{{ t('rh_max_visuals') }}</div>
+                                        <div style="font-weight:700;color:var(--text-1);">{{ report_stats.max_visuals_per_page }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Per-Page Breakdown Table -->
+            <div class="card">
+                <div class="card-body">
+                    <h6 style="font-weight:700;color:var(--text-1);margin-bottom:1rem;">
+                        <i class="bi bi-table me-1" style="color:var(--accent);"></i>{{ t('rh_per_page') }}
+                    </h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0" style="color:var(--text-1);font-size:0.82rem;">
+                            <thead>
+                                <tr style="color:var(--text-3);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.5px;">
+                                    <th>{{ t('rh_page_name') }}</th>
+                                    <th class="text-center">{{ t('rh_visuals') }}</th>
+                                    <th class="text-center">{{ t('rh_filters') }}</th>
+                                    <th class="text-center">{{ t('rh_visibility') }}</th>
+                                    <th>{{ t('rh_top_types') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for page in report_stats.pages %}
+                            <tr>
+                                <td>
+                                    <span style="font-weight:600;">{{ page.name }}</span>
+                                    {% if page.is_tooltip %}<span class="badge bg-info ms-1" style="font-size:0.65rem;">Tooltip</span>{% endif %}
+                                    {% if page.has_drillthrough %}<span class="badge bg-secondary ms-1" style="font-size:0.65rem;">Drillthrough</span>{% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if page.visuals > 15 %}
+                                    <span style="color:#ef4444;font-weight:700;">{{ page.visuals }}</span>
+                                    {% elif page.visuals > 10 %}
+                                    <span style="color:#f59e0b;font-weight:700;">{{ page.visuals }}</span>
+                                    {% else %}
+                                    <span style="font-weight:600;">{{ page.visuals }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">{{ page.filters }}</td>
+                                <td class="text-center">
+                                    {% if page.visibility != 'visible' %}
+                                    <i class="bi bi-eye-slash" style="color:var(--text-4);"></i>
+                                    {% else %}
+                                    <i class="bi bi-eye" style="color:var(--accent);"></i>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% for vtype, cnt in page.visual_types|dictsort(by='value', reverse=true) %}
+                                    {% if loop.index <= 3 %}
+                                    <span class="badge" style="background:var(--glass-bg);color:var(--text-2);font-size:0.68rem;margin-right:2px;">{{ vtype }} ({{ cnt }})</span>
+                                    {% endif %}
+                                    {% endfor %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        {% endif %}
 
         {% if editor_data and analysis_mode == "full" %}
         <!-- ===== EDITOR TAB ===== -->

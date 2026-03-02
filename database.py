@@ -6,7 +6,8 @@ import sqlite3
 from datetime import datetime
 
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "gridpulse.db")
+_IS_VERCEL = bool(os.environ.get("VERCEL"))
+DB_PATH = os.path.join("/tmp", "gridpulse.db") if _IS_VERCEL else os.path.join(os.path.dirname(__file__), "gridpulse.db")
 
 
 def get_db():
@@ -53,6 +54,7 @@ def init_db():
         ("analysis_mode", "TEXT DEFAULT 'full'"),
         ("source_zip_path", "TEXT"),
         ("editor_data", "TEXT"),
+        ("report_stats", "TEXT"),
     ]
     for col_name, col_type in _migrate_columns:
         try:
@@ -135,7 +137,8 @@ def save_analysis(project_name: str, model_format: str, report_format: str,
                   exec_summary=None, dax_complexity=None,
                   unused_measures=None, lineage=None,
                   theme_analysis=None, diagram_data=None,
-                  performance=None, analysis_mode: str = "full",
+                  performance=None, report_stats=None,
+                  analysis_mode: str = "full",
                   source_zip_path: str = "", editor_data=None) -> int:
     """Save an analysis result to the database. Returns the new row ID."""
     overview = documentation.get("overview", {})
@@ -161,9 +164,9 @@ def save_analysis(project_name: str, model_format: str, report_format: str,
             tables_count, measures_count, findings_count,
             exec_summary, dax_complexity, unused_measures,
             lineage, theme_analysis, diagram_data,
-            performance, analysis_mode,
+            performance, report_stats, analysis_mode,
             source_zip_path, editor_data
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         project_name,
         model_format,
@@ -187,6 +190,7 @@ def save_analysis(project_name: str, model_format: str, report_format: str,
         json.dumps(theme_analysis) if theme_analysis else None,
         json.dumps(diagram_data) if diagram_data else None,
         perf_data,
+        json.dumps(report_stats) if report_stats else None,
         analysis_mode,
         source_zip_path,
         json.dumps(editor_data) if editor_data else None,
@@ -221,7 +225,7 @@ def get_analysis(analysis_id: int) -> dict | None:
     # Deserialize JSON fields
     dict_fields = ("category_scores", "documentation", "exec_summary",
                    "theme_analysis", "diagram_data", "performance", "lineage",
-                   "editor_data")
+                   "editor_data", "report_stats")
     list_fields = ("findings", "kpi_suggestions", "dax_improvements",
                    "dax_complexity", "unused_measures")
     for field in dict_fields:
@@ -248,7 +252,8 @@ def delete_analysis(analysis_id: int) -> bool:
     deleted = cursor.rowcount > 0
     conn.close()
     if deleted and row and row["source_zip_path"]:
-        zip_path = os.path.join(os.path.dirname(__file__), "uploads", row["source_zip_path"])
+        _uploads = "/tmp/uploads" if _IS_VERCEL else os.path.join(os.path.dirname(__file__), "uploads")
+        zip_path = os.path.join(_uploads, row["source_zip_path"])
         if os.path.exists(zip_path):
             os.unlink(zip_path)
     return deleted

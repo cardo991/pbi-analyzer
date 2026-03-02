@@ -293,5 +293,31 @@
   "editor_pq_title": "Editor de Power Query",
   "editor_pq_steps": "passos",
   "editor_pq_show_steps": "Mostrar Passos",
-  "editor_pq_m_code": "Codigo M"
+  "editor_pq_m_code": "Codigo M",
+
+  "report_health_title": "Saude do Relatorio",
+  "rh_visuals_per_page": "Media Visuais/Pagina",
+  "rh_filters_per_page": "Media Filtros/Pagina",
+  "rh_total_pages": "Total Paginas",
+  "rh_total_tables": "Total Tabelas",
+  "rh_total_measures": "Total Medidas",
+  "rh_relationships": "Relacionamentos",
+  "rh_custom_visuals": "Visuais Personalizados",
+  "rh_visual_types": "Tipos de Visual",
+  "rh_count": "Quantidade",
+  "rh_distribution": "Distribuicao",
+  "rh_no_visuals": "Nenhum visual encontrado no relatorio.",
+  "rh_no_custom": "Nenhum visual personalizado ou do marketplace detectado.",
+  "rh_summary": "Resumo",
+  "rh_total_visuals": "Total Visuais",
+  "rh_avg_visuals": "Media Visuais/Pagina",
+  "rh_max_visuals": "Max Visuais/Pagina",
+  "rh_per_page": "Detalhes por Pagina",
+  "rh_page_name": "Pagina",
+  "rh_visuals": "Visuais",
+  "rh_filters": "Filtros",
+  "rh_visibility": "Visibilidade",
+  "rh_top_types": "Top Tipos de Visual",
+
+  "export_json": "Baixar JSON"
 }

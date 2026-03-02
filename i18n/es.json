@@ -293,5 +293,31 @@
   "editor_pq_title": "Editor de Power Query",
   "editor_pq_steps": "pasos",
   "editor_pq_show_steps": "Mostrar Pasos",
-  "editor_pq_m_code": "Codigo M"
+  "editor_pq_m_code": "Codigo M",
+
+  "report_health_title": "Salud del Reporte",
+  "rh_visuals_per_page": "Prom. Visuales/Pagina",
+  "rh_filters_per_page": "Prom. Filtros/Pagina",
+  "rh_total_pages": "Total Paginas",
+  "rh_total_tables": "Total Tablas",
+  "rh_total_measures": "Total Medidas",
+  "rh_relationships": "Relaciones",
+  "rh_custom_visuals": "Visuales Personalizados",
+  "rh_visual_types": "Tipos de Visual",
+  "rh_count": "Cantidad",
+  "rh_distribution": "Distribucion",
+  "rh_no_visuals": "No se encontraron visuales en el reporte.",
+  "rh_no_custom": "No se detectaron visuales personalizados o del marketplace.",
+  "rh_summary": "Resumen",
+  "rh_total_visuals": "Total Visuales",
+  "rh_avg_visuals": "Prom. Visuales/Pagina",
+  "rh_max_visuals": "Max Visuales/Pagina",
+  "rh_per_page": "Detalle por Pagina",
+  "rh_page_name": "Pagina",
+  "rh_visuals": "Visuales",
+  "rh_filters": "Filtros",
+  "rh_visibility": "Visibilidad",
+  "rh_top_types": "Top Tipos de Visual",
+
+  "export_json": "Descargar JSON"
 }
