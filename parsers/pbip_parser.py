@@ -26,6 +26,21 @@ def parse_pbip_zip(zip_path: str) -> PBIPParseResult:
     """Extract and parse a PBIP project from a ZIP file."""
     result = PBIPParseResult()
 
+    # Detect PBIX format (contains DataMashup/Report/Layout instead of PBIP structure)
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            names_lower = [n.lower().replace("\\", "/") for n in zf.namelist()]
+            is_pbix = any(
+                n in ("datamashup", "report/layout", "layout")
+                for n in names_lower
+            )
+            if is_pbix:
+                from parsers.pbix_parser import parse_pbix
+                return parse_pbix(zip_path)
+    except zipfile.BadZipFile:
+        result.errors.append("Invalid ZIP file")
+        return result
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         # Extract ZIP
         try:

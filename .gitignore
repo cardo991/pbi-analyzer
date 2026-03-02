@@ -10,6 +10,7 @@ build/
 *.sqlite3
 pbi_analyzer.db
 static/uploads/branding/
+uploads/
 .claude/
 *.zip
 venv/

@@ -84,7 +84,7 @@ AGGREGATION_FUNCTIONS = [
 
 # --- Upload config ---
 MAX_UPLOAD_SIZE_MB = 100
-ALLOWED_EXTENSIONS = {".zip"}
+ALLOWED_EXTENSIONS = {".zip", ".pbix"}
 
 # --- Configurable thresholds (for F7 rules panel) ---
 CONFIGURABLE_THRESHOLDS = {

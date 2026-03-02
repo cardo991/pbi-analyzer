@@ -41,6 +41,25 @@ def init_db():
             findings_count INTEGER
         )
     """)
+    # Migration: add new columns to existing databases
+    _migrate_columns = [
+        ("exec_summary", "TEXT"),
+        ("dax_complexity", "TEXT"),
+        ("unused_measures", "TEXT"),
+        ("lineage", "TEXT"),
+        ("theme_analysis", "TEXT"),
+        ("diagram_data", "TEXT"),
+        ("performance", "TEXT"),
+        ("analysis_mode", "TEXT DEFAULT 'full'"),
+        ("source_zip_path", "TEXT"),
+        ("editor_data", "TEXT"),
+    ]
+    for col_name, col_type in _migrate_columns:
+        try:
+            conn.execute(f"ALTER TABLE analyses ADD COLUMN {col_name} {col_type}")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS branding (
             id INTEGER PRIMARY KEY DEFAULT 1,
@@ -95,36 +114,42 @@ def save_branding(config: dict):
     conn.close()
 
 
+def _serialize_finding(f):
+    """Convert a Finding object or dict to a JSON-safe dict."""
+    if isinstance(f, dict):
+        return f
+    return {
+        "rule_id": f.rule_id,
+        "category": f.category,
+        "severity": f.severity,
+        "message": f.message,
+        "location": f.location,
+        "details": f.details,
+    }
+
+
 def save_analysis(project_name: str, model_format: str, report_format: str,
                   score: dict, findings: list, documentation: dict,
                   kpi_suggestions: list, dax_improvements: list,
-                  file_hash: str = "", file_size: int = 0) -> int:
+                  file_hash: str = "", file_size: int = 0,
+                  exec_summary=None, dax_complexity=None,
+                  unused_measures=None, lineage=None,
+                  theme_analysis=None, diagram_data=None,
+                  performance=None, analysis_mode: str = "full",
+                  source_zip_path: str = "", editor_data=None) -> int:
     """Save an analysis result to the database. Returns the new row ID."""
     overview = documentation.get("overview", {})
 
-    # Serialize findings to JSON-safe dicts
-    findings_data = []
-    for f in findings:
-        findings_data.append({
-            "rule_id": f.rule_id,
-            "category": f.category,
-            "severity": f.severity,
-            "message": f.message,
-            "location": f.location,
-            "details": f.details,
-        })
+    findings_data = [_serialize_finding(f) for f in findings]
+    dax_data = [_serialize_finding(f) for f in dax_improvements]
 
-    # Serialize dax_improvements similarly
-    dax_data = []
-    for f in dax_improvements:
-        dax_data.append({
-            "rule_id": f.rule_id,
-            "category": f.category,
-            "severity": f.severity,
-            "message": f.message,
-            "location": f.location,
-            "details": f.details,
-        })
+    # Serialize performance findings separately
+    perf_data = None
+    if performance:
+        perf_copy = dict(performance)
+        if "findings" in perf_copy:
+            perf_copy["findings"] = [_serialize_finding(f) for f in perf_copy["findings"]]
+        perf_data = json.dumps(perf_copy)
 
     conn = get_db()
     cursor = conn.execute("""
@@ -133,8 +158,12 @@ def save_analysis(project_name: str, model_format: str, report_format: str,
             total_score, grade, category_scores,
             findings, documentation, kpi_suggestions, dax_improvements,
             file_hash, file_size,
-            tables_count, measures_count, findings_count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            tables_count, measures_count, findings_count,
+            exec_summary, dax_complexity, unused_measures,
+            lineage, theme_analysis, diagram_data,
+            performance, analysis_mode,
+            source_zip_path, editor_data
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         project_name,
         model_format,
@@ -151,6 +180,16 @@ def save_analysis(project_name: str, model_format: str, report_format: str,
         overview.get("total_tables", 0),
         overview.get("total_measures", 0),
         len(findings),
+        json.dumps(exec_summary) if exec_summary else None,
+        json.dumps(dax_complexity) if dax_complexity else None,
+        json.dumps(unused_measures) if unused_measures else None,
+        json.dumps(lineage) if lineage else None,
+        json.dumps(theme_analysis) if theme_analysis else None,
+        json.dumps(diagram_data) if diagram_data else None,
+        perf_data,
+        analysis_mode,
+        source_zip_path,
+        json.dumps(editor_data) if editor_data else None,
     ))
     conn.commit()
     row_id = cursor.lastrowid
@@ -180,22 +219,38 @@ def get_analysis(analysis_id: int) -> dict | None:
 
     data = dict(row)
     # Deserialize JSON fields
-    for field in ("category_scores", "findings", "documentation", "kpi_suggestions", "dax_improvements"):
+    dict_fields = ("category_scores", "documentation", "exec_summary",
+                   "theme_analysis", "diagram_data", "performance", "lineage",
+                   "editor_data")
+    list_fields = ("findings", "kpi_suggestions", "dax_improvements",
+                   "dax_complexity", "unused_measures")
+    for field in dict_fields:
         if data.get(field):
             try:
                 data[field] = json.loads(data[field])
             except (json.JSONDecodeError, TypeError):
-                data[field] = {} if field in ("category_scores", "documentation") else []
+                data[field] = {}
+    for field in list_fields:
+        if data.get(field):
+            try:
+                data[field] = json.loads(data[field])
+            except (json.JSONDecodeError, TypeError):
+                data[field] = []
     return data
 
 
 def delete_analysis(analysis_id: int) -> bool:
-    """Delete an analysis by ID."""
+    """Delete an analysis by ID, including stored ZIP file."""
     conn = get_db()
+    row = conn.execute("SELECT source_zip_path FROM analyses WHERE id = ?", (analysis_id,)).fetchone()
     cursor = conn.execute("DELETE FROM analyses WHERE id = ?", (analysis_id,))
     conn.commit()
     deleted = cursor.rowcount > 0
     conn.close()
+    if deleted and row and row["source_zip_path"]:
+        zip_path = os.path.join(os.path.dirname(__file__), "uploads", row["source_zip_path"])
+        if os.path.exists(zip_path):
+            os.unlink(zip_path)
     return deleted
 
 

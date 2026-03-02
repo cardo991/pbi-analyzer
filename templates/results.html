@@ -18,6 +18,7 @@
                 <span style="color:var(--text-2);">{{ project_name }}</span>
                 <span class="badge bg-secondary">{{ model_format|upper }}</span>
                 {% if report_format %}<span class="badge bg-secondary">{{ report_format|upper }}</span>{% endif %}
+                {% if analysis_mode == "light" %}<span class="badge bg-info">{{ t('light_analysis') }}</span>{% endif %}
             </div>
         </div>
         <div class="d-flex gap-2 flex-wrap">
@@ -41,6 +42,12 @@
     <div class="alert alert-warning mb-4">
         <i class="bi bi-exclamation-triangle me-1"></i>
         {% for err in parse_errors %}{{ err }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if analysis_mode == "light" %}
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle me-2"></i>{{ t('light_mode_desc') }}
     </div>
     {% endif %}
 
@@ -162,6 +169,13 @@
                 <i class="bi bi-diagram-3 me-1"></i>{{ t('diagram_title') }}
             </button>
         </li>
+        {% if editor_data and analysis_mode == "full" %}
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-editor">
+                <i class="bi bi-pencil-square me-1"></i>{{ t('editor_title') }}
+            </button>
+        </li>
+        {% endif %}
     </ul>
 
     <div class="tab-content mt-3">
@@ -666,6 +680,211 @@
             </div>
         </div>
 
+        {% if editor_data and analysis_mode == "full" %}
+        <!-- ===== EDITOR TAB ===== -->
+        <div class="tab-pane fade" id="tab-editor">
+
+            {% if not has_source_zip %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle me-1"></i>{{ t('editor_no_source') }}
+            </div>
+            {% endif %}
+
+            <!-- Toolbar -->
+            <div class="editor-toolbar">
+                <button class="btn-ghost btn-sm" id="editor-select-all" onclick="editorSelectAll()">
+                    <i class="bi bi-check2-square me-1"></i><span>{{ t('editor_select_all') }}</span>
+                </button>
+                <button class="btn-ghost btn-sm" id="editor-format-all" onclick="editorFormatAll()">
+                    <i class="bi bi-text-indent-left me-1"></i>{{ t('editor_format_all') }}
+                </button>
+                <div class="editor-counter">
+                    <span id="editor-count">0</span> {{ t('editor_selected') }}
+                </div>
+                {% if has_source_zip %}
+                <button class="btn-neon btn-sm" onclick="editorApplyDownload()">
+                    <i class="bi bi-download me-1"></i>{{ t('editor_apply_download') }}
+                </button>
+                {% endif %}
+            </div>
+
+            <!-- DAX Measure Editor Section -->
+            <div class="editor-section-header">
+                <i class="bi bi-calculator"></i> {{ t('editor_dax_title') }}
+            </div>
+
+            <div id="editor-measures-list">
+            {% for m in editor_data.measures %}
+                <div class="editor-measure-item {% if m.suggestion %}has-suggestion{% endif %}" data-index="{{ loop.index0 }}" data-table="{{ m.table_name }}" data-measure="{{ m.name }}">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <input type="checkbox" class="form-check-input editor-check" data-index="{{ loop.index0 }}" onchange="editorUpdateCount()" {% if m.suggestion %}checked{% endif %}>
+                        <span style="font-weight:600;color:var(--accent);font-size:0.88rem;">{{ m.table_name }}</span>
+                        <i class="bi bi-chevron-right" style="font-size:0.7rem;color:var(--text-3);"></i>
+                        <span style="font-weight:600;color:var(--text-1);font-size:0.88rem;">{{ m.name }}</span>
+                        {% if m.rule_id %}
+                        <span class="rule-id ms-2">{{ m.rule_id }}</span>
+                        {% endif %}
+                        <button class="btn-ghost btn-sm ms-auto" onclick="editorFormatOne(this)" data-target="suggested-{{ loop.index0 }}">
+                            <i class="bi bi-text-indent-left me-1"></i>{{ t('editor_format') }}
+                        </button>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <div class="editor-label">{{ t('editor_current') }}</div>
+                            <pre class="editor-pre">{{ m.expression }}</pre>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="editor-label">{% if m.suggestion %}{{ t('editor_suggested') }}{% else %}{{ t('editor_edit') }}{% endif %}</div>
+                            <textarea class="editor-textarea" id="suggested-{{ loop.index0 }}">{{ m.suggestion if m.suggestion else m.expression }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+            </div>
+
+            <!-- Power Query Editor Section -->
+            {% if editor_data.queries %}
+            <div class="editor-section-header mt-4">
+                <i class="bi bi-file-earmark-code"></i> {{ t('editor_pq_title') }}
+            </div>
+
+            <div id="editor-pq-list">
+            {% for q in editor_data.queries %}
+                <div class="editor-measure-item {% if q.findings %}has-suggestion{% endif %}"
+                     data-pq-index="{{ loop.index0 }}" data-table="{{ q.table_name }}" data-query="{{ q.query_name }}">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <input type="checkbox" class="form-check-input editor-pq-check"
+                               data-pq-index="{{ loop.index0 }}" onchange="editorUpdateCount()">
+                        <span style="font-weight:600;color:var(--accent);font-size:0.88rem;">{{ q.table_name }}</span>
+                        <i class="bi bi-chevron-right" style="font-size:0.7rem;color:var(--text-3);"></i>
+                        <span style="font-weight:600;color:var(--text-1);font-size:0.88rem;">{{ q.query_name }}</span>
+                        <span class="badge bg-secondary ms-1">{{ q.step_count }} {{ t('editor_pq_steps') }}</span>
+                        {% for rule_id in q.findings %}
+                        <span class="rule-id ms-1">{{ rule_id }}</span>
+                        {% endfor %}
+                        <button class="btn-ghost btn-sm ms-auto" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#pq-steps-{{ loop.index0 }}">
+                            <i class="bi bi-list-nested me-1"></i>{{ t('editor_pq_show_steps') }}
+                        </button>
+                    </div>
+
+                    <!-- Step list (collapsed) -->
+                    <div class="collapse mb-2" id="pq-steps-{{ loop.index0 }}">
+                        <div class="small" style="background:var(--code-bg, var(--bg-input));border-radius:6px;padding:0.5rem;">
+                            {% for step in q.steps %}
+                            <div class="d-flex gap-2 py-1 {% if not loop.last %}border-bottom{% endif %}" style="border-color:var(--glass-border) !important;">
+                                <span class="badge bg-dark" style="min-width:24px;">{{ loop.index }}</span>
+                                <code style="color:var(--accent);white-space:nowrap;">{{ step.name }}</code>
+                                <code class="small text-truncate" style="color:var(--text-3);max-width:500px;">{{ step.expression[:100] }}{% if step.expression|length > 100 %}...{% endif %}</code>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- M code textarea -->
+                    <div class="editor-label">{{ t('editor_pq_m_code') }}</div>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <pre class="editor-pre editor-pq-original">{{ q.m_code }}</pre>
+                        </div>
+                        <div class="col-md-6">
+                            <textarea class="editor-textarea editor-pq-textarea"
+                                      id="pq-code-{{ loop.index0 }}" rows="6">{{ q.m_code }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Add New Measure Section -->
+            <div class="editor-section-header mt-4">
+                <i class="bi bi-plus-circle"></i> {{ t('editor_new_measure') }}
+            </div>
+
+            <div class="card p-3 mb-3" style="background:var(--bg-card);border:1px solid var(--glass-border);border-radius:8px;">
+                <div class="row g-2 mb-2">
+                    <div class="col-md-4">
+                        <label class="editor-label">{{ t('editor_table') }}</label>
+                        <select class="form-select form-select-sm" id="new-measure-table" style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);">
+                            {% set seen_tables = [] %}
+                            {% for m in editor_data.measures %}
+                                {% if m.table_name not in seen_tables %}
+                                    {% if seen_tables.append(m.table_name) %}{% endif %}
+                                    <option value="{{ m.table_name }}">{{ m.table_name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="editor-label">{{ t('editor_measure_name') }}</label>
+                        <input type="text" class="form-control form-control-sm" id="new-measure-name" style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="editor-label">{{ t('editor_format_string') }}</label>
+                        <input type="text" class="form-control form-control-sm" id="new-measure-format" placeholder="#,##0" style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);">
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="editor-label">DAX</label>
+                    <textarea class="editor-textarea" id="new-measure-dax" rows="3" placeholder="SUM(Table[Column])"></textarea>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn-ghost btn-sm" onclick="editorFormatNewMeasure()">
+                        <i class="bi bi-text-indent-left me-1"></i>{{ t('editor_format') }}
+                    </button>
+                    <button class="btn-neon btn-sm" onclick="editorAddMeasure()">
+                        <i class="bi bi-plus me-1"></i>{{ t('editor_add') }}
+                    </button>
+                </div>
+            </div>
+
+            <div id="editor-added-measures" class="editor-added-list mb-4"></div>
+
+            <!-- Relationship Editor Section -->
+            {% if editor_data.relationships %}
+            <div class="editor-section-header mt-4">
+                <i class="bi bi-link-45deg"></i> {{ t('editor_rel_title') }}
+            </div>
+
+            <div class="card mb-3" style="background:var(--bg-card);border:1px solid var(--glass-border);border-radius:8px;">
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>{{ t('from') }}</th>
+                                <th>{{ t('to') }}</th>
+                                <th>{{ t('cardinality') }}</th>
+                                <th>{{ t('cross_filter') }}</th>
+                                <th>{{ t('active') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in editor_data.relationships %}
+                            <tr data-rel-index="{{ r.index }}">
+                                <td>{{ r.from_table }}[{{ r.from_column }}]</td>
+                                <td>{{ r.to_table }}[{{ r.to_column }}]</td>
+                                <td>{{ r.from_cardinality }}:{{ r.to_cardinality }}</td>
+                                <td>
+                                    <select class="form-select form-select-sm rel-crossfilter" data-index="{{ r.index }}" data-original="{{ r.cross_filtering }}" style="background:var(--bg-input);border-color:var(--glass-border);color:var(--text-1);min-width:130px;">
+                                        <option value="oneDirection" {% if r.cross_filtering == 'oneDirection' %}selected{% endif %}>Single</option>
+                                        <option value="bothDirections" {% if r.cross_filtering == 'bothDirections' %}selected{% endif %}>Both</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="checkbox" class="form-check-input rel-active" data-index="{{ r.index }}" data-original="{{ r.is_active|lower }}" {% if r.is_active %}checked{% endif %}>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+        {% endif %}
+
     </div>
 
     <!-- Branding Footer (for PDF export) -->
@@ -684,6 +903,19 @@
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="{{ url_for('static', filename='js/relationship-diagram.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lineage-tree.js') }}"></script>
+{% if editor_data and analysis_mode == "full" %}
+<script src="{{ url_for('static', filename='js/dax-editor.js') }}"></script>
+<script>
+    window._editorAnalysisId = {{ analysis_id|default(0)|tojson }};
+    window._editorI18n = {
+        select_all: {{ t('editor_select_all')|tojson }},
+        deselect_all: {{ t('editor_deselect_all')|tojson }},
+        no_changes: {{ t('editor_no_changes')|tojson }},
+    };
+    // Init count for pre-checked suggestions
+    editorUpdateCount();
+</script>
+{% endif %}
 <script>
     // Pass i18n to clipboard.js
     window._i18n_copy = {{ t('copy_clipboard')|tojson }};

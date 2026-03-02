@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import sys
 import tempfile
 
@@ -38,6 +39,8 @@ from generators.executive_summary import generate_executive_summary
 from generators.excel_export import generate_excel
 from generators.markdown_export import generate_markdown
 from generators.branded_pdf import get_branding_config, save_branding_config, generate_branding_html
+from generators.pbip_modifier import apply_changes as apply_pbip_changes
+from generators.dax_formatter import format_dax
 from database import init_db, save_analysis, get_all_analyses, get_analysis, delete_analysis, compare_analyses
 from config import MAX_UPLOAD_SIZE_MB
 
@@ -47,6 +50,9 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 # Initialize database
 init_db()
+
+# Ensure uploads directory exists
+os.makedirs(os.path.join(os.path.dirname(__file__), "uploads", "pbip"), exist_ok=True)
 
 # Register API blueprint
 from api import api_bp
@@ -114,7 +120,8 @@ def _run_analysis(file_obj, lang, disabled_rules=None, thresholds=None):
         tmp_path = file_obj
         should_cleanup = False
     else:
-        tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+        ext = os.path.splitext(getattr(file_obj, 'filename', '') or '')[1].lower() or ".zip"
+        tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
         file_obj.save(tmp.name)
         tmp_path = tmp.name
         tmp.close()
@@ -131,36 +138,45 @@ def _run_analysis(file_obj, lang, disabled_rules=None, thresholds=None):
         if should_cleanup and os.path.exists(tmp_path):
             os.unlink(tmp_path)
         return {"error": str(e)}
-    finally:
-        if should_cleanup and os.path.exists(tmp_path):
-            os.unlink(tmp_path)
 
-    if result.errors and not result.semantic_model.tables:
+    if result.errors and not result.semantic_model.tables and not result.report.pages:
         error_msg = result.errors[0] if result.errors else t("error_no_pbip", lang)
         return {"error": error_msg}
 
+    # Detect analysis mode
+    analysis_mode = "full"
+    if result.model_format == "pbix":
+        analysis_mode = "light"
+
     # Run analyzers
     findings = []
-    findings.extend(analyze_dax(result.semantic_model))
-    findings.extend(analyze_power_query(result.semantic_model))
-    findings.extend(analyze_model(result.semantic_model))
-    findings.extend(analyze_report(result.report))
-    findings.extend(analyze_rls(result.semantic_model))
-    findings.extend(analyze_security(result.semantic_model, result.report))
-    findings.extend(analyze_bookmarks(result.report))
-
-    # Naming conventions (uses configurable convention)
-    naming_convention = "title_case"
-    if thresholds and "naming_convention" in thresholds:
-        naming_convention = thresholds["naming_convention"]
-    findings.extend(analyze_naming(result.semantic_model, naming_convention))
+    if analysis_mode == "light":
+        # Light mode: only PQ, report, bookmarks, and M-code security rules
+        findings.extend(analyze_power_query(result.semantic_model))
+        findings.extend(analyze_report(result.report))
+        findings.extend(analyze_bookmarks(result.report))
+        sec_findings = analyze_security(result.semantic_model, result.report)
+        findings.extend([f for f in sec_findings if f.rule_id in ("SEC-005", "SEC-006")])
+    else:
+        findings.extend(analyze_dax(result.semantic_model))
+        findings.extend(analyze_power_query(result.semantic_model))
+        findings.extend(analyze_model(result.semantic_model))
+        findings.extend(analyze_report(result.report))
+        findings.extend(analyze_rls(result.semantic_model))
+        findings.extend(analyze_security(result.semantic_model, result.report))
+        findings.extend(analyze_bookmarks(result.report))
+        naming_convention = "title_case"
+        if thresholds and "naming_convention" in thresholds:
+            naming_convention = thresholds["naming_convention"]
+        findings.extend(analyze_naming(result.semantic_model, naming_convention))
 
     # Filter disabled rules
     if disabled_rules:
         findings = [f for f in findings if f.rule_id not in disabled_rules]
 
-    # Add DAX improvement suggestions to findings
-    findings = generate_dax_improvements(findings, result.semantic_model, lang)
+    # Add DAX improvement suggestions (full mode only)
+    if analysis_mode == "full":
+        findings = generate_dax_improvements(findings, result.semantic_model, lang)
 
     # Translate finding messages
     for f in findings:
@@ -172,35 +188,32 @@ def _run_analysis(file_obj, lang, disabled_rules=None, thresholds=None):
     # Generate documentation
     documentation = generate_documentation(result.semantic_model, result.report)
 
-    # Generate KPI suggestions
-    kpi_suggestions = generate_kpi_suggestions(result.semantic_model, lang)
+    # Generate KPI suggestions (only meaningful with full model)
+    kpi_suggestions = generate_kpi_suggestions(result.semantic_model, lang) if analysis_mode == "full" else []
 
     # DAX improvements list
-    dax_improvements = [f for f in findings if f.category == "dax" and f.details.get("suggestion")]
+    dax_improvements = [f for f in findings if f.category == "dax" and f.details.get("suggestion")] if analysis_mode == "full" else []
 
     # Executive summary
     exec_summary = generate_executive_summary(documentation, score, findings, lang)
 
-    # DAX complexity
-    dax_complexity = analyze_dax_complexity(result.semantic_model)
-
-    # Unused measures
-    unused_measures = analyze_unused_measures(result.semantic_model, result.report)
-
-    # Measure lineage
-    lineage = build_lineage(result.semantic_model)
-
-    # Theme analysis
-    theme_info = None
+    # Full-mode only analyses
+    dax_complexity = []
+    unused_measures = []
+    lineage = None
     theme_analysis = None
-    if hasattr(result, '_report_dir') and result._report_dir:
-        theme_info = parse_theme(result._report_dir)
-    theme_analysis = analyze_theme(theme_info)
+    performance = None
 
-    # Performance analysis
-    performance = analyze_performance(result.semantic_model)
-    # Performance findings go into main findings list
-    findings.extend(performance["findings"])
+    if analysis_mode == "full":
+        dax_complexity = analyze_dax_complexity(result.semantic_model)
+        unused_measures = analyze_unused_measures(result.semantic_model, result.report)
+        lineage = build_lineage(result.semantic_model)
+        theme_info = None
+        if hasattr(result, '_report_dir') and result._report_dir:
+            theme_info = parse_theme(result._report_dir)
+        theme_analysis = analyze_theme(theme_info)
+        performance = analyze_performance(result.semantic_model)
+        findings.extend(performance["findings"])
 
     # Relationship diagram data
     diagram_data = _build_diagram_data(result.semantic_model)
@@ -208,6 +221,12 @@ def _run_analysis(file_obj, lang, disabled_rules=None, thresholds=None):
     # Branding
     branding = get_branding_config()
     branding_html = generate_branding_html(branding)
+
+    # Build editor data for full-mode PBIP analyses
+    editor_data = None
+    if analysis_mode == "full":
+        pq_findings = [f for f in findings if f.category == "power_query"]
+        editor_data = _build_editor_data(result.semantic_model, dax_improvements, pq_findings)
 
     return {
         "project_name": result.project_name,
@@ -230,6 +249,9 @@ def _run_analysis(file_obj, lang, disabled_rules=None, thresholds=None):
         "branding_html": branding_html,
         "file_hash": file_hash if 'file_hash' in dir() else "",
         "file_size": file_size if 'file_size' in dir() else 0,
+        "analysis_mode": analysis_mode,
+        "editor_data": editor_data,
+        "_tmp_path": tmp_path if should_cleanup else None,
     }
 
 
@@ -272,6 +294,123 @@ def _build_diagram_data(model):
     return {"nodes": nodes, "links": links}
 
 
+def _build_editor_data(model, dax_improvements, pq_findings=None):
+    """Build editor data with measures (+ suggestions), PQ queries, and relationships."""
+    from analyzers.dax_optimizer import optimize_measure
+
+    # Build suggestion map from findings: (table_name, measure_name) -> suggestion info
+    suggestion_map = {}
+    for f in dax_improvements:
+        if isinstance(f, dict):
+            d = f.get("details", {})
+            rule_id = f.get("rule_id", "")
+        else:
+            d = f.details
+            rule_id = f.rule_id
+
+        table = d.get("table_name", "")
+        measure = d.get("measure_name", "")
+        suggestion = d.get("suggestion", "")
+        if table and measure and suggestion:
+            if (table, measure) not in suggestion_map:
+                suggestion_map[(table, measure)] = {"suggestion": suggestion, "rule_id": rule_id}
+
+    # Collect all measures
+    measures = []
+    for table in model.tables:
+        if table.name.startswith("DateTableTemplate") or table.name.startswith("LocalDateTable"):
+            continue
+        for m in table.measures:
+            entry = {
+                "table_name": table.name,
+                "name": m.name,
+                "expression": m.expression,
+            }
+            key = (table.name, m.name)
+            if key in suggestion_map:
+                entry["suggestion"] = suggestion_map[key]["suggestion"]
+                entry["rule_id"] = suggestion_map[key]["rule_id"]
+            else:
+                # Try optimizer directly for measures not covered by findings
+                optimized = optimize_measure(m.expression)
+                if optimized:
+                    entry["suggestion"] = optimized
+                    entry["rule_id"] = "OPT"
+            measures.append(entry)
+
+    # Collect relationships
+    relationships = []
+    for idx, r in enumerate(model.relationships):
+        relationships.append({
+            "index": idx,
+            "from_table": r.from_table,
+            "from_column": r.from_column,
+            "to_table": r.to_table,
+            "to_column": r.to_column,
+            "from_cardinality": r.from_cardinality,
+            "to_cardinality": r.to_cardinality,
+            "cross_filtering": r.cross_filtering,
+            "is_active": r.is_active,
+        })
+
+    # Build PQ editor data
+    queries = _build_pq_editor_data(model, pq_findings) if pq_findings is not None else []
+
+    return {"measures": measures, "relationships": relationships, "queries": queries}
+
+
+def _build_pq_editor_data(model, pq_findings):
+    """Build Power Query data for the editor tab."""
+    from analyzers.pq_analyzer import parse_m_steps
+
+    # Build findings map: (table_name, query_name) -> list of finding rule_ids
+    pq_finding_map = {}
+    for f in pq_findings:
+        loc = f.location if hasattr(f, "location") else f.get("location", "")
+        rule_id = f.rule_id if hasattr(f, "rule_id") else f.get("rule_id", "")
+
+        table_match = re.search(r"Table\s+'([^']+)'", loc)
+        query_match = re.search(r"Query\s+'([^']+)'", loc)
+        table_name = table_match.group(1) if table_match else "(Shared)"
+        query_name = query_match.group(1) if query_match else ""
+
+        key = (table_name, query_name)
+        pq_finding_map.setdefault(key, []).append(rule_id)
+
+    queries = []
+    for table in model.tables:
+        if table.name.startswith("DateTableTemplate") or table.name.startswith("LocalDateTable"):
+            continue
+        for p in table.partitions:
+            if p.source_type == "m" and p.expression:
+                steps = parse_m_steps(p.expression)
+                finding_rules = pq_finding_map.get((table.name, p.name), [])
+                queries.append({
+                    "table_name": table.name,
+                    "query_name": p.name,
+                    "m_code": p.expression,
+                    "steps": steps,
+                    "step_count": len([s for s in steps if s["name"] != "(result)"]),
+                    "findings": finding_rules,
+                })
+
+    # Shared expressions
+    for expr_obj in model.expressions:
+        if expr_obj.expression:
+            steps = parse_m_steps(expr_obj.expression)
+            finding_rules = pq_finding_map.get(("(Shared)", expr_obj.name), [])
+            queries.append({
+                "table_name": "(Shared)",
+                "query_name": expr_obj.name,
+                "m_code": expr_obj.expression,
+                "steps": steps,
+                "step_count": len([s for s in steps if s["name"] != "(result)"]),
+                "findings": finding_rules,
+            })
+
+    return queries
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -296,7 +435,7 @@ def analyze():
         return render_template("index.html", error=t("error_no_file", lang))
 
     # Filter valid ZIP files
-    valid_files = [f for f in files if f.filename and f.filename.lower().endswith(".zip")]
+    valid_files = [f for f in files if f.filename and f.filename.lower().endswith((".zip", ".pbix"))]
     if not valid_files:
         return render_template("index.html", error=t("error_not_zip", lang))
 
@@ -305,11 +444,15 @@ def analyze():
         result = _run_analysis(valid_files[0], lang, disabled_rules, thresholds)
 
         if "error" in result:
+            # Cleanup temp file on error
+            tmp_path = result.get("_tmp_path")
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
             return render_template("index.html", error=result["error"])
 
-        # Save to history
+        # Save to history (with all data for full results on reload)
         try:
-            save_analysis(
+            row_id = save_analysis(
                 project_name=result["project_name"],
                 model_format=result["model_format"],
                 report_format=result["report_format"],
@@ -320,9 +463,37 @@ def analyze():
                 dax_improvements=result["dax_improvements"],
                 file_hash=result.get("file_hash", ""),
                 file_size=result.get("file_size", 0),
+                exec_summary=result.get("exec_summary"),
+                dax_complexity=result.get("dax_complexity"),
+                unused_measures=result.get("unused_measures"),
+                lineage=result.get("lineage"),
+                theme_analysis=result.get("theme_analysis"),
+                diagram_data=result.get("diagram_data"),
+                performance=result.get("performance"),
+                analysis_mode=result.get("analysis_mode", "full"),
+                editor_data=result.get("editor_data"),
             )
         except Exception:
-            pass  # Don't fail analysis if DB save fails
+            row_id = None
+
+        # Persist uploaded ZIP for editor (full mode only)
+        tmp_path = result.get("_tmp_path")
+        source_zip_path = ""
+        if row_id and tmp_path and os.path.exists(tmp_path) and result.get("analysis_mode") == "full":
+            import shutil
+            dest = os.path.join(os.path.dirname(__file__), "uploads", "pbip", f"{row_id}.zip")
+            shutil.copy2(tmp_path, dest)
+            source_zip_path = f"pbip/{row_id}.zip"
+            # Update DB with ZIP path
+            from database import get_db
+            conn = get_db()
+            conn.execute("UPDATE analyses SET source_zip_path = ? WHERE id = ?", (source_zip_path, row_id))
+            conn.commit()
+            conn.close()
+
+        # Cleanup temp file
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
         # Store last result in session for export
         session["last_analysis"] = {
@@ -331,6 +502,11 @@ def analyze():
             "report_format": result["report_format"],
         }
 
+        # Redirect to history detail (GET-accessible, language switch works)
+        if row_id:
+            return redirect(url_for("history_detail", id=row_id, lang=lang))
+
+        # Fallback: render directly if DB save failed
         return render_template(
             "results.html",
             project_name=result["project_name"],
@@ -351,12 +527,19 @@ def analyze():
             performance=result["performance"],
             branding=result.get("branding", {}),
             branding_html=result.get("branding_html", {}),
+            analysis_mode=result.get("analysis_mode", "full"),
+            editor_data=result.get("editor_data"),
+            has_source_zip=False,
         )
 
     # Multi-file analysis
     results = []
     for f in valid_files:
         r = _run_analysis(f, lang, disabled_rules, thresholds)
+        # Cleanup temp files for multi-file (no editor support)
+        tmp_path = r.get("_tmp_path")
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
         if "error" not in r:
             results.append(r)
 
@@ -410,8 +593,12 @@ def history_detail(id):
         category_findings.setdefault(cat, []).append(f)
     score["category_findings"] = category_findings
 
+    # Branding (always fresh from DB)
+    branding = get_branding_config()
+    branding_html = generate_branding_html(branding)
+
     return render_template(
-        "history_detail.html" if os.path.exists(os.path.join(app.template_folder, "history_detail.html")) else "results.html",
+        "results.html",
         project_name=data.get("project_name", ""),
         model_format=data.get("model_format", ""),
         report_format=data.get("report_format", ""),
@@ -421,13 +608,20 @@ def history_detail(id):
         kpi_suggestions=data.get("kpi_suggestions", []),
         dax_improvements=data.get("dax_improvements", []),
         parse_errors=[],
-        exec_summary=None,
-        dax_complexity=[],
-        unused_measures=[],
-        lineage={"has_lineage": False, "trees": [], "nodes": [], "links": []},
-        theme_analysis=None,
-        diagram_data={"nodes": [], "links": []},
+        exec_summary=data.get("exec_summary"),
+        dax_complexity=data.get("dax_complexity", []),
+        unused_measures=data.get("unused_measures", []),
+        lineage=data.get("lineage") or {"has_lineage": False, "trees": [], "nodes": [], "links": []},
+        theme_analysis=data.get("theme_analysis"),
+        diagram_data=data.get("diagram_data") or {"nodes": [], "links": []},
+        performance=data.get("performance"),
+        branding=branding,
+        branding_html=branding_html,
+        analysis_mode=data.get("analysis_mode", "full"),
         from_history=True,
+        editor_data=data.get("editor_data"),
+        analysis_id=id,
+        has_source_zip=bool(data.get("source_zip_path")),
     )
 
 
@@ -443,6 +637,63 @@ def compare(id1, id2):
     if not comparison:
         return redirect(url_for("history"))
     return render_template("comparison.html", comparison=comparison)
+
+
+# --- Editor routes ---
+
+@app.route("/editor/apply/<int:id>", methods=["POST"])
+def editor_apply(id):
+    """Apply DAX/relationship/measure changes and return modified PBIP ZIP."""
+    data = get_analysis(id)
+    if not data or not data.get("source_zip_path"):
+        return jsonify({"error": "No source ZIP available for this analysis"}), 404
+
+    zip_path = os.path.join(os.path.dirname(__file__), "uploads", data["source_zip_path"])
+    if not os.path.exists(zip_path):
+        return jsonify({"error": "Source ZIP file not found"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    dax_changes = payload.get("dax_changes", [])
+    relationship_changes = payload.get("relationship_changes", [])
+    new_measures = payload.get("new_measures", [])
+    pq_changes = payload.get("pq_changes", [])
+
+    if not dax_changes and not relationship_changes and not new_measures and not pq_changes:
+        return jsonify({"error": "No changes provided"}), 400
+
+    try:
+        output = apply_pbip_changes(
+            zip_path=zip_path,
+            dax_changes=dax_changes or None,
+            relationship_changes=relationship_changes or None,
+            new_measures=new_measures or None,
+            pq_changes=pq_changes or None,
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    filename = f"{data.get('project_name', 'project')}-modified.zip"
+    return send_file(
+        output,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@app.route("/editor/format-dax", methods=["POST"])
+def format_dax_route():
+    """Format a DAX expression with proper indentation."""
+    payload = request.get_json(silent=True) or {}
+    expression = payload.get("expression", "")
+    if not expression:
+        return jsonify({"formatted": ""})
+
+    try:
+        formatted = format_dax(expression)
+        return jsonify({"formatted": formatted})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # --- Export routes ---

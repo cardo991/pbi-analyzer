@@ -164,6 +164,60 @@ def _check_pq007(m_code: str, loc: str) -> list[Finding]:
     return []
 
 
+def parse_m_steps(m_code: str) -> list[dict]:
+    """Parse M code into individual named steps.
+
+    Returns list of {"name": step_name, "expression": step_expression}.
+    """
+    let_match = re.search(r'(?i)\blet\b', m_code)
+    in_pos = _find_in_keyword(m_code)
+
+    if not let_match or in_pos is None:
+        return [{"name": "(full query)", "expression": m_code.strip()}]
+
+    let_body = m_code[let_match.end():in_pos]
+    result_expr = m_code[in_pos:].strip()
+    if result_expr.lower().startswith("in"):
+        result_expr = result_expr[2:].strip()
+
+    steps = []
+    lines = let_body.split("\n")
+    current_name = None
+    current_expr_lines = []
+
+    for line in lines:
+        # New assignment: StepName = expression  or  #"Step Name" = expression
+        assign_match = re.match(r'^\s*(#?"[^"]*"|\w+)\s*=\s*(.*)', line)
+        if assign_match:
+            if current_name:
+                steps.append({
+                    "name": current_name,
+                    "expression": "\n".join(current_expr_lines).strip().rstrip(","),
+                })
+            current_name = assign_match.group(1).strip().strip('"').lstrip("#").strip('"')
+            current_expr_lines = [assign_match.group(2)]
+        elif current_name:
+            current_expr_lines.append(line)
+
+    if current_name:
+        steps.append({
+            "name": current_name,
+            "expression": "\n".join(current_expr_lines).strip().rstrip(","),
+        })
+
+    if result_expr:
+        steps.append({"name": "(result)", "expression": result_expr})
+
+    return steps
+
+
+def _find_in_keyword(m_code: str) -> int | None:
+    """Find position of the 'in' keyword that ends the let block."""
+    pattern = re.compile(r'(?<!\w)\bin\b(?!\w)(?!\s*")', re.IGNORECASE)
+    matches = list(pattern.finditer(m_code))
+    return matches[-1].start() if matches else None
+
+
 def _find_func_position(m_code: str, func_name: str) -> int | None:
     """Find the first position of a function call in M code."""
     match = re.search(re.escape(func_name) + r'\s*\(', m_code)

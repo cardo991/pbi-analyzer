@@ -30,7 +30,7 @@
                         <h5 style="position:relative;z-index:1;color:var(--text-1);">{{ t('upload_title') }}</h5>
                         <p style="position:relative;z-index:1;color:var(--text-2);font-size:0.88rem;">{{ t('upload_desc') }}</p>
                         <p style="position:relative;z-index:1;color:var(--text-3);font-size:0.75rem;">{{ t('upload_multiple') }}</p>
-                        <input type="file" name="file" id="file-input" accept=".zip" class="d-none" multiple>
+                        <input type="file" name="file" id="file-input" accept=".zip,.pbix" class="d-none" multiple>
                         <button type="button" class="btn-ghost" onclick="document.getElementById('file-input').click()" style="position:relative;z-index:1;">
                             <i class="bi bi-folder2-open me-1"></i> Browse
                         </button>
@@ -95,6 +95,9 @@
                     <li>ZIP the entire project folder (the one containing <code>.Report</code> and <code>.SemanticModel</code>)</li>
                     <li>Upload the ZIP here and get your analysis</li>
                 </ol>
+                <div class="mt-2 small" style="color:var(--text-3);">
+                    <i class="bi bi-lightning-charge me-1" style="color:var(--accent);"></i>{{ t('pbix_upload_note') }}
+                </div>
             </div>
         </div>
     </div>

@@ -224,15 +224,34 @@ def generate_kpi_suggestions(model: SemanticModel, lang: str = "en") -> list[dic
 
 def generate_dax_improvements(findings: list[Finding], model: SemanticModel, lang: str = "en") -> list[Finding]:
     """Enrich DAX findings with improvement suggestions (code rewrites)."""
-    all_measures = {}
+    from analyzers.dax_optimizer import optimize_measure
+
+    # Build measure expression map: (table_name, measure_name) -> expression
+    measure_map = {}
     for t in model.tables:
         for m in t.measures:
-            all_measures[f"{t.name}.{m.name}"] = m
+            tname = m.table_name or t.name
+            measure_map[(tname, m.name)] = m.expression
 
     for f in findings:
         if f.category != "dax":
             continue
 
+        # Parse location to extract table_name and measure_name
+        table_name, measure_name = _parse_location(f.location)
+        if table_name and measure_name:
+            f.details["table_name"] = table_name
+            f.details["measure_name"] = measure_name
+
+        # Try concrete optimizer first
+        expression = measure_map.get((table_name, measure_name), "")
+        if expression:
+            optimized = optimize_measure(expression)
+            if optimized:
+                f.details["suggestion"] = optimized
+                continue
+
+        # Fall back to text tips
         improvement = DAX_IMPROVEMENTS.get(f.rule_id)
         if not improvement:
             continue
@@ -252,6 +271,18 @@ def generate_dax_improvements(findings: list[Finding], model: SemanticModel, lan
 # -------------------------------------------------------
 # Internal helpers
 # -------------------------------------------------------
+
+def _parse_location(location: str) -> tuple[str, str]:
+    """Extract table name and measure name from a location string.
+
+    Expected format: "Table 'TableName', Measure 'MeasureName'"
+    """
+    table_match = re.search(r"Table\s+'([^']+)'", location)
+    measure_match = re.search(r"Measure\s+'([^']+)'", location)
+    table_name = table_match.group(1) if table_match else ""
+    measure_name = measure_match.group(1) if measure_match else ""
+    return table_name, measure_name
+
 
 def _build_suggestion(kpi: dict, dax: str, lang: str) -> dict:
     name_key = f"name_{lang}"
