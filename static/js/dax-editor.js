@@ -160,6 +160,17 @@ function _renderAddedMeasures() {
     container.innerHTML = html;
 }
 
+function editorFixAll() {
+    // Select all measures that have optimizer suggestions
+    document.querySelectorAll('.editor-measure-item.has-suggestion').forEach(function(item) {
+        var cb = item.querySelector('.editor-check') || item.querySelector('.editor-pq-check');
+        if (cb) cb.checked = true;
+    });
+    editorUpdateCount();
+    // Trigger download with all suggested fixes
+    editorApplyDownload();
+}
+
 function editorApplyDownload() {
     var analysisId = window._editorAnalysisId;
     if (!analysisId) return;

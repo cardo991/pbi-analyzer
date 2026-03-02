@@ -319,5 +319,81 @@
   "rh_visibility": "Visibility",
   "rh_top_types": "Top Visual Types",
 
-  "export_json": "Download JSON"
+  "export_json": "Download JSON",
+
+  "editor_fix_all": "Fix All",
+
+  "profile_select": "Compliance Profile",
+  "profile_custom": "Custom",
+  "profile_export": "Export Profile",
+  "profile_import": "Import Profile",
+
+  "IR-001": "Table '{table}' uses a database source but has no incremental refresh configured. Consider enabling IR for faster refreshes.",
+  "IR-002": "Table '{table}' has incremental refresh configured but no date/datetime column was found. IR requires a date column.",
+  "IR-003": "Incremental refresh on '{table}' references column '{column}' which is not a date type.",
+
+  "embed_badge": "Embed",
+  "embed_title": "Embed Badge & Widget",
+  "embed_preview": "Badge Preview",
+  "embed_markdown": "Markdown",
+  "embed_html": "HTML",
+
+  "pq_lineage_title": "PQ Lineage",
+  "pq_lineage_source": "Source",
+  "pq_lineage_staging": "Staging",
+  "pq_lineage_final": "Final",
+
+  "debugger_title": "DAX Debugger",
+  "debugger_expression": "DAX Expression",
+  "debugger_analyze": "Analyze",
+  "debugger_debug": "Debug",
+
+  "ai_insights_title": "AI Insights",
+  "ai_insights_generate": "Generate AI Insights",
+  "ai_insights_loading": "Analyzing...",
+  "ai_insights_hint": "Click 'Generate AI Insights' to get AI-powered recommendations. Requires an API key configured in Settings.",
+
+  "settings_title": "Settings",
+  "settings_ai_title": "AI Provider",
+  "settings_ai_provider": "Provider",
+  "settings_ai_model": "Model",
+  "settings_ai_key": "API Key",
+  "settings_save": "Save",
+
+  "dashboard_title": "Dashboard",
+  "dashboard_total_analyses": "Total Analyses",
+  "dashboard_unique_projects": "Unique Projects",
+  "dashboard_avg_score": "Average Score",
+  "dashboard_filter_search": "Search",
+  "dashboard_search_placeholder": "Filter projects...",
+  "dashboard_filter_grade": "Grade",
+  "dashboard_all_grades": "All Grades",
+  "dashboard_filter_from": "From",
+  "dashboard_filter_to": "To",
+  "dashboard_clear_filters": "Clear Filters",
+  "dashboard_projects": "Projects",
+  "dashboard_analyses": "analyses",
+  "dashboard_score_trend": "Score Trend",
+  "dashboard_category_heatmap": "Category Heatmap",
+  "dashboard_empty": "No analyses found. Upload a project to get started.",
+
+  "download_docx": "Download Word",
+
+  "schedules_title": "Schedules",
+  "schedules_desc": "Configure periodic re-analysis of your Power BI projects.",
+  "schedules_info": "Schedules run analysis on stored project ZIPs. Upload a project first, then create a schedule from the history page.",
+  "schedules_project": "Project",
+  "schedules_cron": "Cron",
+  "schedules_email": "Email",
+  "schedules_last_run": "Last Run",
+  "schedules_last_score": "Score",
+  "schedules_status": "Status",
+  "schedules_actions": "Actions",
+  "schedules_active": "Active",
+  "schedules_paused": "Paused",
+  "schedules_run_now": "Run Now",
+  "schedules_toggle": "Toggle",
+  "schedules_delete": "Delete",
+  "schedules_empty": "No schedules configured.",
+  "schedules_empty_hint": "Analyze a project first, then you can schedule periodic re-analysis."
 }

@@ -26,6 +26,7 @@ def parse_bim(bim_path: str) -> SemanticModel:
             is_hidden=t.get("isHidden", False),
             description=t.get("description", ""),
             data_category=t.get("dataCategory", ""),
+            refresh_policy=t.get("refreshPolicy", {}),
         )
 
         # Parse columns

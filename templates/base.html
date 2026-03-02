@@ -28,9 +28,18 @@
                 <span>{{ t('app_title') }}</span>
             </a>
             <div class="d-flex align-items-center gap-2">
+                <a href="{{ url_for('dashboard', lang=lang) }}" class="btn-ghost btn-sm" style="font-size:0.78rem;">
+                    <i class="bi bi-grid-1x2-fill me-1"></i>{{ t('dashboard_title') }}
+                </a>
                 <a href="{{ url_for('history', lang=lang) }}" class="btn-ghost btn-sm" style="font-size:0.78rem;">
                     <i class="bi bi-clock-history me-1"></i>{{ t('history_title') }}
                 </a>
+                <a href="{{ url_for('schedules_page', lang=lang) }}" class="btn-ghost btn-sm" style="font-size:0.78rem;">
+                    <i class="bi bi-calendar-check me-1"></i>{{ t('schedules_title') }}
+                </a>
+                <button class="btn-ghost btn-sm" style="font-size:0.78rem;" data-bs-toggle="modal" data-bs-target="#settingsModal">
+                    <i class="bi bi-gear"></i>
+                </button>
                 <button class="theme-toggle" id="theme-toggle" title="{{ t('theme_toggle') }}">
                     <i class="bi bi-moon-stars-fill" id="theme-icon"></i>
                 </button>
@@ -51,6 +60,43 @@
         </div>
     </footer>
 
+    <!-- Settings Modal (AI Provider) -->
+    <div class="modal fade" id="settingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content" style="background:var(--bg-surface);border:1px solid var(--glass-border);">
+                <div class="modal-header" style="border-color:var(--glass-border);">
+                    <h5 class="modal-title" style="color:var(--text-1);font-weight:700;">
+                        <i class="bi bi-gear me-2" style="color:var(--accent);"></i>{{ t('settings_title') }}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6 style="font-weight:600;color:var(--accent);font-size:0.9rem;"><i class="bi bi-robot me-1"></i>{{ t('settings_ai_title') }}</h6>
+                    <div class="mb-3">
+                        <label class="form-label small" style="color:var(--text-2);">{{ t('settings_ai_provider') }}</label>
+                        <select id="ai-provider" class="form-select form-select-sm" style="background:var(--bg-card);border-color:var(--glass-border);color:var(--text-1);">
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic (Claude)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small" style="color:var(--text-2);">{{ t('settings_ai_model') }}</label>
+                        <input type="text" id="ai-model" class="form-control form-control-sm" placeholder="gpt-4o-mini" style="background:var(--bg-card);border-color:var(--glass-border);color:var(--text-1);">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small" style="color:var(--text-2);">{{ t('settings_ai_key') }}</label>
+                        <input type="password" id="ai-api-key" class="form-control form-control-sm" placeholder="sk-..." style="background:var(--bg-card);border-color:var(--glass-border);color:var(--text-1);">
+                        <div id="ai-key-status" class="form-text" style="color:var(--text-3);font-size:0.75rem;"></div>
+                    </div>
+                    <button class="btn-neon btn-sm" onclick="saveAISettings()">
+                        <i class="bi bi-check2 me-1"></i>{{ t('settings_save') }}
+                    </button>
+                    <span id="ai-save-status" style="color:var(--grade-a);font-size:0.8rem;margin-left:0.5rem;display:none;">Saved!</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/particles.js') }}"></script>
     <script>
@@ -69,6 +115,32 @@
                 applyTheme(current === 'dark' ? 'light' : 'dark');
             });
         })();
+    </script>
+    <script>
+        // AI Settings load/save
+        function saveAISettings() {
+            fetch('/settings/ai', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    ai_provider: document.getElementById('ai-provider').value,
+                    ai_model: document.getElementById('ai-model').value,
+                    ai_api_key: document.getElementById('ai-api-key').value
+                })
+            }).then(function() {
+                var s = document.getElementById('ai-save-status');
+                s.style.display = 'inline';
+                setTimeout(function() { s.style.display = 'none'; }, 2000);
+            });
+        }
+        // Load current settings when modal opens
+        document.getElementById('settingsModal').addEventListener('show.bs.modal', function() {
+            fetch('/settings/ai').then(function(r) { return r.json(); }).then(function(d) {
+                document.getElementById('ai-provider').value = d.provider || 'openai';
+                document.getElementById('ai-model').value = d.model || 'gpt-4o-mini';
+                document.getElementById('ai-key-status').textContent = d.has_key ? 'Key configured: ' + d.api_key_masked : 'No key set';
+            });
+        });
     </script>
     {% block scripts %}{% endblock %}
 </body>

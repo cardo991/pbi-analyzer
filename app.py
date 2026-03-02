@@ -51,6 +51,10 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 # Initialize database
 init_db()
 
+# Initialize compliance profiles
+from profiles import init_profiles, get_all_profiles, get_profile, save_custom_profile, delete_custom_profile, export_profile, import_profile
+init_profiles()
+
 # Ensure uploads directory exists (use /tmp on Vercel)
 _IS_VERCEL = bool(os.environ.get("VERCEL"))
 _UPLOADS_BASE = "/tmp/uploads" if _IS_VERCEL else os.path.join(os.path.dirname(__file__), "uploads")
@@ -172,6 +176,11 @@ def _run_analysis(file_obj, lang, disabled_rules=None, thresholds=None):
             naming_convention = thresholds["naming_convention"]
         findings.extend(analyze_naming(result.semantic_model, naming_convention))
 
+        # Incremental refresh detection
+        from analyzers.incremental_refresh import analyze_incremental_refresh
+        findings.extend(analyze_incremental_refresh(result.semantic_model,
+                                                     disabled_rules=disabled_rules or set()))
+
     # Filter disabled rules
     if disabled_rules:
         findings = [f for f in findings if f.rule_id not in disabled_rules]
@@ -206,10 +215,16 @@ def _run_analysis(file_obj, lang, disabled_rules=None, thresholds=None):
     theme_analysis = None
     performance = None
 
+    pq_lineage = None
+
     if analysis_mode == "full":
         dax_complexity = analyze_dax_complexity(result.semantic_model)
         unused_measures = analyze_unused_measures(result.semantic_model, result.report)
         lineage = build_lineage(result.semantic_model)
+
+        # PQ Lineage (D3 force-directed graph)
+        from analyzers.pq_lineage import build_pq_lineage
+        pq_lineage = build_pq_lineage(result.semantic_model)
         theme_info = None
         if hasattr(result, '_report_dir') and result._report_dir:
             theme_info = parse_theme(result._report_dir)
@@ -253,6 +268,7 @@ def _run_analysis(file_obj, lang, disabled_rules=None, thresholds=None):
         "branding": branding,
         "branding_html": branding_html,
         "report_stats": report_stats,
+        "pq_lineage": pq_lineage,
         "file_hash": file_hash if 'file_hash' in dir() else "",
         "file_size": file_size if 'file_size' in dir() else 0,
         "analysis_mode": analysis_mode,
@@ -576,6 +592,7 @@ def analyze():
                 diagram_data=result.get("diagram_data"),
                 performance=result.get("performance"),
                 report_stats=result.get("report_stats"),
+                pq_lineage=result.get("pq_lineage"),
                 analysis_mode=result.get("analysis_mode", "full"),
                 editor_data=result.get("editor_data"),
             )
@@ -632,6 +649,7 @@ def analyze():
             diagram_data=result["diagram_data"],
             performance=result["performance"],
             report_stats=result.get("report_stats"),
+            pq_lineage=result.get("pq_lineage"),
             branding=result.get("branding", {}),
             branding_html=result.get("branding_html", {}),
             analysis_mode=result.get("analysis_mode", "full"),
@@ -723,6 +741,7 @@ def history_detail(id):
         diagram_data=data.get("diagram_data") or {"nodes": [], "links": []},
         performance=data.get("performance"),
         report_stats=data.get("report_stats"),
+        pq_lineage=data.get("pq_lineage"),
         branding=branding,
         branding_html=branding_html,
         analysis_mode=data.get("analysis_mode", "full"),
@@ -896,6 +915,17 @@ def export_markdown():
     )
 
 
+@app.route("/badge/<int:analysis_id>.svg")
+def badge(analysis_id):
+    """Return SVG badge for an analysis."""
+    from generators.badge import generate_badge_svg
+    data = get_analysis(analysis_id)
+    if not data:
+        return "Not found", 404
+    svg = generate_badge_svg(data.get("total_score", 0), data.get("grade", "F"))
+    return svg, 200, {"Content-Type": "image/svg+xml", "Cache-Control": "no-cache"}
+
+
 @app.route("/export/json")
 def export_json():
     """Export analysis as JSON."""
@@ -993,10 +1023,282 @@ def save_branding():
     return redirect(url_for("index"))
 
 
+@app.route("/profiles", methods=["GET"])
+def profiles_list():
+    """List all compliance profiles as JSON."""
+    return jsonify(get_all_profiles())
+
+
+@app.route("/profiles", methods=["POST"])
+def profiles_create():
+    """Create a custom compliance profile."""
+    data = request.get_json(silent=True) or {}
+    try:
+        row_id = save_custom_profile(
+            name=data.get("name", ""),
+            description=data.get("description", ""),
+            disabled_rules=data.get("disabled_rules", []),
+            thresholds=data.get("thresholds", {}),
+        )
+        return jsonify({"id": row_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/profiles/<int:pid>/export")
+def profiles_export(pid):
+    """Export a profile as JSON download."""
+    data = export_profile(pid)
+    if not data:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(data)
+
+
+@app.route("/profiles/<int:pid>/delete", methods=["POST"])
+def profiles_delete(pid):
+    """Delete a custom profile."""
+    deleted = delete_custom_profile(pid)
+    return jsonify({"deleted": deleted})
+
+
+@app.route("/profiles/import", methods=["POST"])
+def profiles_import():
+    """Import a profile from JSON."""
+    data = request.get_json(silent=True) or {}
+    try:
+        row_id = import_profile(data)
+        return jsonify({"id": row_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.context_processor
 def inject_branding():
     """Make branding config available in all templates."""
     return {"branding": get_branding_config()}
+
+
+# --- DAX Debugger route ---
+
+@app.route("/debug-dax", methods=["POST"])
+def debug_dax():
+    """Debug a DAX expression."""
+    from analyzers.dax_debugger import debug_dax_expression
+    payload = request.get_json(silent=True) or {}
+    expression = payload.get("expression", "")
+    analysis_id = payload.get("analysis_id")
+
+    model_context = None
+    if analysis_id:
+        data = get_analysis(int(analysis_id))
+        if data and data.get("documentation"):
+            model_context = data["documentation"]
+
+    result = debug_dax_expression(expression, model_context)
+    return jsonify(result)
+
+
+# --- AI Insights routes ---
+
+@app.route("/settings/ai", methods=["POST"])
+def settings_ai():
+    """Save AI provider settings."""
+    from database import save_setting
+    payload = request.get_json(silent=True) or {}
+    for key in ("ai_provider", "ai_api_key", "ai_model"):
+        if key in payload:
+            save_setting(key, payload[key])
+    return jsonify({"ok": True})
+
+
+@app.route("/settings/ai", methods=["GET"])
+def get_settings_ai():
+    """Get AI provider settings (without exposing full key)."""
+    from database import get_setting
+    api_key = get_setting("ai_api_key") or ""
+    masked = api_key[:4] + "****" + api_key[-4:] if len(api_key) > 8 else ("****" if api_key else "")
+    return jsonify({
+        "provider": get_setting("ai_provider") or "openai",
+        "api_key_masked": masked,
+        "has_key": bool(api_key),
+        "model": get_setting("ai_model") or "gpt-4o-mini",
+    })
+
+
+@app.route("/ai-insights/<int:analysis_id>", methods=["POST"])
+def ai_insights(analysis_id):
+    """Generate AI insights for an analysis."""
+    from generators.ai_insights import generate_ai_insights
+    from database import get_setting
+
+    data = get_analysis(analysis_id)
+    if not data:
+        return jsonify({"error": "Analysis not found"}), 404
+
+    lang = request.args.get("lang", session.get("lang", "en"))
+    provider = get_setting("ai_provider") or "openai"
+    api_key = get_setting("ai_api_key") or ""
+    model = get_setting("ai_model") or "gpt-4o-mini"
+
+    result = generate_ai_insights(
+        documentation=data.get("documentation", {}),
+        score=data.get("total_score", 0),
+        findings=data.get("findings", []),
+        exec_summary=data.get("exec_summary", {}),
+        provider=provider,
+        api_key=api_key,
+        model=model,
+        lang=lang,
+    )
+    return jsonify(result)
+
+
+# --- Dashboard route ---
+
+@app.route("/dashboard")
+def dashboard():
+    """Team dashboard with multi-project overview."""
+    from database import get_dashboard_data
+    dashboard_data = get_dashboard_data()
+    return render_template("dashboard.html", dashboard=dashboard_data)
+
+
+# --- DOCX Data Dictionary Export ---
+
+@app.route("/export/docx")
+def export_docx():
+    """Export analysis as Word document."""
+    lang = request.args.get("lang", session.get("lang", "en"))
+    analysis_id = request.args.get("id")
+
+    if analysis_id:
+        data = get_analysis(int(analysis_id))
+    else:
+        analyses = get_all_analyses()
+        if not analyses:
+            return redirect(url_for("index"))
+        data = get_analysis(analyses[0]["id"])
+
+    if not data:
+        return redirect(url_for("index"))
+
+    score = {
+        "total_score": data.get("total_score", 0),
+        "grade": data.get("grade", "F"),
+        "category_scores": data.get("category_scores", {}),
+    }
+
+    try:
+        from generators.docx_export import generate_data_dictionary
+        branding = get_branding_config()
+        output = generate_data_dictionary(
+            project_name=data.get("project_name", ""),
+            documentation=data.get("documentation", {}),
+            score=score,
+            findings=data.get("findings", []),
+            branding=branding,
+            lang=lang,
+        )
+    except ImportError:
+        return "python-docx not installed. Run: pip install python-docx", 500
+
+    filename = f"data-dictionary-{data.get('project_name', 'report')}.docx"
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+# --- Scheduled Analysis routes ---
+
+@app.route("/schedules")
+def schedules_page():
+    """Scheduled analysis management page."""
+    from database import get_all_schedules
+    schedules = get_all_schedules()
+    return render_template("schedules.html", schedules=schedules)
+
+
+@app.route("/schedules", methods=["POST"])
+def schedules_create():
+    """Create a new schedule."""
+    from database import create_schedule
+    payload = request.get_json(silent=True) or {}
+    try:
+        row_id = create_schedule(
+            project_name=payload.get("project_name", ""),
+            source_zip_path=payload.get("source_zip_path", ""),
+            cron_expression=payload.get("cron_expression", "0 8 * * 1"),
+            email_to=payload.get("email_to", ""),
+        )
+        return jsonify({"id": row_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/schedules/<int:sid>/toggle", methods=["POST"])
+def schedules_toggle(sid):
+    """Toggle schedule active state."""
+    from database import toggle_schedule
+    active = toggle_schedule(sid)
+    return jsonify({"active": active})
+
+
+@app.route("/schedules/<int:sid>/delete", methods=["POST"])
+def schedules_delete(sid):
+    """Delete a schedule."""
+    from database import delete_schedule
+    deleted = delete_schedule(sid)
+    return jsonify({"deleted": deleted})
+
+
+@app.route("/schedules/<int:sid>/run", methods=["POST"])
+def schedules_run_now(sid):
+    """Run a scheduled analysis immediately."""
+    from database import get_schedule, save_schedule_run
+    schedule = get_schedule(sid)
+    if not schedule:
+        return jsonify({"error": "Schedule not found"}), 404
+
+    zip_path = os.path.join(_UPLOADS_BASE, schedule["source_zip_path"])
+    if not os.path.exists(zip_path):
+        return jsonify({"error": "Source ZIP not found"}), 404
+
+    lang = request.args.get("lang", session.get("lang", "en"))
+    result = _run_analysis(zip_path, lang)
+
+    if "error" in result:
+        save_schedule_run(sid, None, 0, 0, "error", result["error"])
+        return jsonify({"error": result["error"]}), 500
+
+    row_id = save_analysis(
+        project_name=result["project_name"],
+        model_format=result["model_format"],
+        report_format=result["report_format"],
+        score=result["score"],
+        findings=result["findings"],
+        documentation=result["documentation"],
+        kpi_suggestions=result["kpi_suggestions"],
+        dax_improvements=result["dax_improvements"],
+        exec_summary=result.get("exec_summary"),
+        dax_complexity=result.get("dax_complexity"),
+        unused_measures=result.get("unused_measures"),
+        lineage=result.get("lineage"),
+        theme_analysis=result.get("theme_analysis"),
+        diagram_data=result.get("diagram_data"),
+        performance=result.get("performance"),
+        report_stats=result.get("report_stats"),
+        analysis_mode=result.get("analysis_mode", "full"),
+        editor_data=result.get("editor_data"),
+    )
+
+    prev_score = schedule.get("last_score", 0) or 0
+    new_score = result["score"]["total_score"]
+    delta = round(new_score - prev_score, 1)
+    save_schedule_run(sid, row_id, new_score, delta)
+    return jsonify({"analysis_id": row_id, "score": new_score, "delta": delta})
 
 
 if __name__ == "__main__":

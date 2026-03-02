@@ -156,4 +156,8 @@ RULES_REGISTRY = {
     "BK-001": {"category": "report", "severity": "info", "desc": "Orphan bookmark"},
     "BK-002": {"category": "report", "severity": "info", "desc": "Bookmark targets missing page"},
     "BK-003": {"category": "report", "severity": "info", "desc": "Too many bookmarks"},
+    # Incremental Refresh (F9)
+    "IR-001": {"category": "data_model", "severity": "info", "desc": "Table without incremental refresh"},
+    "IR-002": {"category": "data_model", "severity": "warning", "desc": "IR configured without date column"},
+    "IR-003": {"category": "data_model", "severity": "warning", "desc": "IR partition key not date type"},
 }

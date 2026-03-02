@@ -249,6 +249,8 @@ def _parse_table_tmdl(path: str) -> Table | None:
         if line.startswith("\t") and not line.startswith("\t\t"):
             if stripped.startswith("isHidden"):
                 table.is_hidden = True
+            if stripped.startswith("refreshPolicy"):
+                table.refresh_policy = {"detected": True}
 
     return table
 

@@ -47,6 +47,7 @@ class Table:
     is_hidden: bool = False
     description: str = ""
     data_category: str = ""
+    refresh_policy: dict = field(default_factory=dict)
 
 
 @dataclass

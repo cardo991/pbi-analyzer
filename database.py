@@ -55,6 +55,7 @@ def init_db():
         ("source_zip_path", "TEXT"),
         ("editor_data", "TEXT"),
         ("report_stats", "TEXT"),
+        ("pq_lineage", "TEXT"),
     ]
     for col_name, col_type in _migrate_columns:
         try:
@@ -72,6 +73,44 @@ def init_db():
             footer_text TEXT DEFAULT ''
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT DEFAULT '',
+            is_builtin INTEGER DEFAULT 0,
+            disabled_rules TEXT DEFAULT '[]',
+            thresholds TEXT DEFAULT '{}',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def get_setting(key: str) -> str | None:
+    """Get a setting value by key."""
+    conn = get_db()
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    conn.close()
+    return row["value"] if row else None
+
+
+def save_setting(key: str, value: str):
+    """Save a setting (upsert)."""
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP",
+        (key, value),
+    )
     conn.commit()
     conn.close()
 
@@ -138,6 +177,7 @@ def save_analysis(project_name: str, model_format: str, report_format: str,
                   unused_measures=None, lineage=None,
                   theme_analysis=None, diagram_data=None,
                   performance=None, report_stats=None,
+                  pq_lineage=None,
                   analysis_mode: str = "full",
                   source_zip_path: str = "", editor_data=None) -> int:
     """Save an analysis result to the database. Returns the new row ID."""
@@ -164,9 +204,9 @@ def save_analysis(project_name: str, model_format: str, report_format: str,
             tables_count, measures_count, findings_count,
             exec_summary, dax_complexity, unused_measures,
             lineage, theme_analysis, diagram_data,
-            performance, report_stats, analysis_mode,
+            performance, report_stats, pq_lineage, analysis_mode,
             source_zip_path, editor_data
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         project_name,
         model_format,
@@ -191,6 +231,7 @@ def save_analysis(project_name: str, model_format: str, report_format: str,
         json.dumps(diagram_data) if diagram_data else None,
         perf_data,
         json.dumps(report_stats) if report_stats else None,
+        json.dumps(pq_lineage) if pq_lineage else None,
         analysis_mode,
         source_zip_path,
         json.dumps(editor_data) if editor_data else None,
@@ -225,7 +266,7 @@ def get_analysis(analysis_id: int) -> dict | None:
     # Deserialize JSON fields
     dict_fields = ("category_scores", "documentation", "exec_summary",
                    "theme_analysis", "diagram_data", "performance", "lineage",
-                   "editor_data", "report_stats")
+                   "editor_data", "report_stats", "pq_lineage")
     list_fields = ("findings", "kpi_suggestions", "dax_improvements",
                    "dax_complexity", "unused_measures")
     for field in dict_fields:
@@ -302,3 +343,179 @@ def compare_analyses(id1: int, id2: int) -> dict | None:
         "removed_findings": removed_findings,
         "category_changes": cat_changes,
     }
+
+
+# --- Dashboard ---
+
+def get_dashboard_data() -> dict:
+    """Build aggregated dashboard data for all projects."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, project_name, analyzed_at, total_score, grade, category_scores "
+        "FROM analyses ORDER BY analyzed_at ASC"
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        return {"projects": [], "total_analyses": 0, "unique_projects": 0, "avg_score": 0}
+
+    # Group by project name
+    projects_map = {}
+    for r in rows:
+        name = r["project_name"]
+        if name not in projects_map:
+            projects_map[name] = {
+                "name": name,
+                "scores": [],
+                "analyses_count": 0,
+                "last_score": 0,
+                "last_grade": "F",
+                "last_analyzed": "",
+                "category_scores": {},
+            }
+        proj = projects_map[name]
+        proj["scores"].append(r["total_score"] or 0)
+        proj["analyses_count"] += 1
+        proj["last_score"] = r["total_score"] or 0
+        proj["last_grade"] = r["grade"] or "F"
+        proj["last_analyzed"] = r["analyzed_at"] or ""
+        # Parse category scores
+        try:
+            cs = json.loads(r["category_scores"]) if r["category_scores"] else {}
+            proj["category_scores"] = cs
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    projects = sorted(projects_map.values(), key=lambda p: p["last_score"], reverse=True)
+    total = len(rows)
+    unique = len(projects)
+    avg = round(sum(r["total_score"] or 0 for r in rows) / total, 1) if total else 0
+
+    return {
+        "projects": projects,
+        "total_analyses": total,
+        "unique_projects": unique,
+        "avg_score": avg,
+    }
+
+
+# --- Schedules ---
+
+def _init_schedule_tables():
+    """Create schedule tables if not exist."""
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS schedules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_name TEXT NOT NULL,
+            source_zip_path TEXT NOT NULL,
+            cron_expression TEXT DEFAULT '0 8 * * 1',
+            email_to TEXT DEFAULT '',
+            is_active INTEGER DEFAULT 1,
+            last_run_at TIMESTAMP,
+            last_score REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS schedule_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            schedule_id INTEGER REFERENCES schedules(id),
+            analysis_id INTEGER,
+            score REAL,
+            score_delta REAL,
+            run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status TEXT DEFAULT 'success',
+            error_message TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+# Auto-init schedule tables
+_init_schedule_tables()
+
+
+def get_all_schedules() -> list[dict]:
+    """Get all schedules."""
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM schedules ORDER BY created_at DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_schedule(sid: int) -> dict | None:
+    """Get a single schedule."""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM schedules WHERE id = ?", (sid,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def create_schedule(project_name: str, source_zip_path: str,
+                    cron_expression: str = "0 8 * * 1", email_to: str = "") -> int:
+    """Create a new schedule."""
+    conn = get_db()
+    cursor = conn.execute(
+        "INSERT INTO schedules (project_name, source_zip_path, cron_expression, email_to) VALUES (?, ?, ?, ?)",
+        (project_name, source_zip_path, cron_expression, email_to),
+    )
+    conn.commit()
+    row_id = cursor.lastrowid
+    conn.close()
+    return row_id
+
+
+def toggle_schedule(sid: int) -> bool:
+    """Toggle schedule active state. Returns new state."""
+    conn = get_db()
+    row = conn.execute("SELECT is_active FROM schedules WHERE id = ?", (sid,)).fetchone()
+    if not row:
+        conn.close()
+        return False
+    new_state = 0 if row["is_active"] else 1
+    conn.execute("UPDATE schedules SET is_active = ? WHERE id = ?", (new_state, sid))
+    conn.commit()
+    conn.close()
+    return bool(new_state)
+
+
+def delete_schedule(sid: int) -> bool:
+    """Delete a schedule and its runs."""
+    conn = get_db()
+    conn.execute("DELETE FROM schedule_runs WHERE schedule_id = ?", (sid,))
+    cursor = conn.execute("DELETE FROM schedules WHERE id = ?", (sid,))
+    conn.commit()
+    deleted = cursor.rowcount > 0
+    conn.close()
+    return deleted
+
+
+def save_schedule_run(schedule_id: int, analysis_id: int | None,
+                      score: float, score_delta: float,
+                      status: str = "success", error_message: str = ""):
+    """Record a schedule run."""
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO schedule_runs (schedule_id, analysis_id, score, score_delta, status, error_message) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (schedule_id, analysis_id, score, score_delta, status, error_message),
+    )
+    conn.execute(
+        "UPDATE schedules SET last_run_at = CURRENT_TIMESTAMP, last_score = ? WHERE id = ?",
+        (score, schedule_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_schedule_runs(schedule_id: int) -> list[dict]:
+    """Get runs for a schedule."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM schedule_runs WHERE schedule_id = ? ORDER BY run_at DESC LIMIT 20",
+        (schedule_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

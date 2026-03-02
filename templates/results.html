@@ -35,9 +35,17 @@
             <a href="{{ url_for('export_markdown', lang=lang) }}" class="btn-ghost">
                 <i class="bi bi-filetype-md me-1"></i>{{ t('download_markdown') }}
             </a>
+            <a href="{{ url_for('export_docx', lang=lang) }}{% if analysis_id %}?id={{ analysis_id }}{% endif %}" class="btn-ghost">
+                <i class="bi bi-file-earmark-word me-1"></i>{{ t('download_docx') }}
+            </a>
             <a href="{{ url_for('export_json') }}{% if analysis_id %}?id={{ analysis_id }}{% endif %}" class="btn-ghost">
                 <i class="bi bi-filetype-json me-1"></i>{{ t('export_json') }}
             </a>
+            {% if analysis_id %}
+            <button class="btn-ghost" data-bs-toggle="modal" data-bs-target="#embedModal">
+                <i class="bi bi-code-slash me-1"></i>{{ t('embed_badge') }}
+            </button>
+            {% endif %}
         </div>
     </div>
 
@@ -64,6 +72,29 @@
             <p style="color:var(--text-1);font-size:0.9rem;margin-bottom:0.3rem;">
                 {{ t('exec_summary_template', tables=exec_summary.total_tables, measures=exec_summary.total_measures, relationships=exec_summary.total_relationships, findings=exec_summary.total_findings, attention=t('exec_summary_attention', areas=exec_summary.attention_areas|join(', ')) if exec_summary.has_issues else t('exec_summary_no_issues')) }}
             </p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- AI Insights Section -->
+    {% if analysis_id %}
+    <div class="card mb-4 cascade-in" id="ai-insights-card" style="border-left:4px solid var(--accent2) !important;">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 style="font-weight:700;color:var(--accent2);margin-bottom:0;">
+                    <i class="bi bi-robot me-1"></i>{{ t('ai_insights_title') }}
+                </h6>
+                <button class="btn-neon btn-sm" id="ai-insights-btn" onclick="generateAIInsights()">
+                    <i class="bi bi-stars me-1"></i>
+                    <span>{{ t('ai_insights_generate') }}</span>
+                </button>
+            </div>
+            <div id="ai-insights-results" style="display:none;">
+                <div id="ai-insights-content" style="color:var(--text-1);font-size:0.88rem;line-height:1.6;"></div>
+            </div>
+            <div id="ai-insights-empty" style="color:var(--text-3);font-size:0.82rem;">
+                {{ t('ai_insights_hint') }}
+            </div>
         </div>
     </div>
     {% endif %}
@@ -172,6 +203,13 @@
                 <i class="bi bi-diagram-3 me-1"></i>{{ t('diagram_title') }}
             </button>
         </li>
+        {% if pq_lineage and pq_lineage.has_lineage %}
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-pq-lineage">
+                <i class="bi bi-share me-1"></i>{{ t('pq_lineage_title') }}
+            </button>
+        </li>
+        {% endif %}
         {% if report_stats %}
         <li class="nav-item">
             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-report-health">
@@ -690,6 +728,41 @@
             </div>
         </div>
 
+        {% if pq_lineage and pq_lineage.has_lineage %}
+        <!-- ===== PQ LINEAGE TAB ===== -->
+        <div class="tab-pane fade" id="tab-pq-lineage">
+            <div class="card cascade-in">
+                <div class="card-header py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0" style="font-weight:700;color:var(--text-1);">
+                            <i class="bi bi-share me-1" style="color:var(--accent);"></i>{{ t('pq_lineage_title') }}
+                        </h6>
+                        <div class="d-flex gap-3">
+                            <span class="d-flex align-items-center gap-1" style="font-size:0.72rem;color:var(--text-3);">
+                                <span style="width:12px;height:3px;background:#22c55e;display:inline-block;border-radius:2px;"></span> {{ t('pq_lineage_source') }}
+                            </span>
+                            <span class="d-flex align-items-center gap-1" style="font-size:0.72rem;color:var(--text-3);">
+                                <span style="width:12px;height:3px;background:#f59e0b;display:inline-block;border-radius:2px;"></span> {{ t('pq_lineage_staging') }}
+                            </span>
+                            <span class="d-flex align-items-center gap-1" style="font-size:0.72rem;color:var(--text-3);">
+                                <span style="width:12px;height:3px;background:#3b82f6;display:inline-block;border-radius:2px;"></span> {{ t('pq_lineage_final') }}
+                            </span>
+                            <span class="d-flex align-items-center gap-1" style="font-size:0.72rem;color:var(--text-3);">
+                                <span style="width:12px;height:3px;background:#a855f7;display:inline-block;border-radius:2px;"></span> merge
+                            </span>
+                            <span class="d-flex align-items-center gap-1" style="font-size:0.72rem;color:var(--text-3);">
+                                <span style="width:12px;height:3px;background:#ec4899;display:inline-block;border-radius:2px;"></span> append
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0" style="position:relative;overflow:hidden;">
+                    <div id="pq-lineage-container" style="min-height:500px;"></div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         {% if report_stats %}
         <!-- ===== REPORT HEALTH TAB ===== -->
         <div class="tab-pane fade" id="tab-report-health">
@@ -892,6 +965,9 @@
                     <span id="editor-count">0</span> {{ t('editor_selected') }}
                 </div>
                 {% if has_source_zip %}
+                <button class="btn-ghost btn-sm" onclick="editorFixAll()" style="color:var(--grade-a);">
+                    <i class="bi bi-magic me-1"></i>{{ t('editor_fix_all') }}
+                </button>
                 <button class="btn-neon btn-sm" onclick="editorApplyDownload()">
                     <i class="bi bi-download me-1"></i>{{ t('editor_apply_download') }}
                 </button>
@@ -914,7 +990,10 @@
                         {% if m.rule_id %}
                         <span class="rule-id ms-2">{{ m.rule_id }}</span>
                         {% endif %}
-                        <button class="btn-ghost btn-sm ms-auto" onclick="editorFormatOne(this)" data-target="suggested-{{ loop.index0 }}">
+                        <button class="btn-ghost btn-sm ms-auto" onclick="debugMeasure(this)" data-expression="{{ m.expression|e }}" title="{{ t('debugger_title') }}">
+                            <i class="bi bi-bug me-1"></i>{{ t('debugger_debug') }}
+                        </button>
+                        <button class="btn-ghost btn-sm" onclick="editorFormatOne(this)" data-target="suggested-{{ loop.index0 }}">
                             <i class="bi bi-text-indent-left me-1"></i>{{ t('editor_format') }}
                         </button>
                     </div>
@@ -1082,6 +1161,79 @@
     {{ branding_html.footer|safe }}
     {% endif %}
 </div>
+
+<!-- DAX Debugger Modal -->
+<div class="modal fade" id="debuggerModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="background:var(--bg-surface);border:1px solid var(--glass-border);">
+            <div class="modal-header" style="border-color:var(--glass-border);">
+                <h5 class="modal-title" style="color:var(--text-1);font-weight:700;">
+                    <i class="bi bi-bug me-2" style="color:var(--accent);"></i>{{ t('debugger_title') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small" style="color:var(--text-2);">{{ t('debugger_expression') }}</label>
+                    <div class="d-flex gap-2">
+                        <textarea id="debugger-input" class="form-control form-control-sm" rows="3"
+                                  placeholder="CALCULATE(SUM(Sales[Amount]), FILTER(...))"
+                                  style="background:var(--bg-card);border-color:var(--glass-border);color:var(--text-1);font-family:'JetBrains Mono',monospace;font-size:0.82rem;"></textarea>
+                    </div>
+                    <button class="btn-neon btn-sm mt-2" onclick="runDebugger()">
+                        <i class="bi bi-play-fill me-1"></i>{{ t('debugger_analyze') }}
+                    </button>
+                </div>
+                <div id="debugger-results"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if analysis_id %}
+<!-- Embed Badge Modal -->
+<div class="modal fade" id="embedModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background:var(--bg-surface);border:1px solid var(--glass-border);">
+            <div class="modal-header" style="border-color:var(--glass-border);">
+                <h5 class="modal-title" style="color:var(--text-1);font-weight:700;">
+                    <i class="bi bi-code-slash me-2" style="color:var(--accent);"></i>{{ t('embed_title') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Badge Preview -->
+                <div class="text-center mb-4 p-3" style="background:var(--bg-card);border-radius:8px;">
+                    <div class="mb-2" style="font-size:0.78rem;color:var(--text-3);">{{ t('embed_preview') }}</div>
+                    <img src="{{ url_for('badge', analysis_id=analysis_id) }}" alt="GridPulse Badge" style="height:20px;">
+                </div>
+
+                <!-- Markdown Code -->
+                <div class="mb-3">
+                    <label class="form-label" style="color:var(--text-2);font-size:0.82rem;font-weight:600;">{{ t('embed_markdown') }}</label>
+                    <div class="position-relative">
+                        <pre class="p-2" style="background:var(--bg-input);border:1px solid var(--glass-border);border-radius:6px;color:var(--text-1);font-size:0.8rem;white-space:pre-wrap;" id="embed-md">[![GridPulse Score]({{ request.url_root }}badge/{{ analysis_id }}.svg)]({{ request.url_root }}history/{{ analysis_id }})</pre>
+                        <button class="copy-btn btn-ghost btn-sm position-absolute" style="top:4px;right:4px;" onclick="navigator.clipboard.writeText(document.getElementById('embed-md').textContent);this.innerHTML='<i class=\'bi bi-check2\'></i>';">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- HTML Code -->
+                <div class="mb-3">
+                    <label class="form-label" style="color:var(--text-2);font-size:0.82rem;font-weight:600;">{{ t('embed_html') }}</label>
+                    <div class="position-relative">
+                        <pre class="p-2" style="background:var(--bg-input);border:1px solid var(--glass-border);border-radius:6px;color:var(--text-1);font-size:0.8rem;white-space:pre-wrap;" id="embed-html">&lt;a href="{{ request.url_root }}history/{{ analysis_id }}"&gt;&lt;img src="{{ request.url_root }}badge/{{ analysis_id }}.svg" alt="GridPulse Score"&gt;&lt;/a&gt;</pre>
+                        <button class="copy-btn btn-ghost btn-sm position-absolute" style="top:4px;right:4px;" onclick="navigator.clipboard.writeText(document.getElementById('embed-html').textContent);this.innerHTML='<i class=\'bi bi-check2\'></i>';">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -1093,6 +1245,8 @@
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="{{ url_for('static', filename='js/relationship-diagram.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lineage-tree.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pq-lineage.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dax-debugger.js') }}"></script>
 {% if editor_data and analysis_mode == "full" %}
 <script src="{{ url_for('static', filename='js/dax-editor.js') }}"></script>
 <script>
@@ -1129,6 +1283,67 @@
             renderLineageTree('lineage-container', lineageData);
         }
     });
+    {% endif %}
+
+    // Render PQ Lineage
+    {% if pq_lineage and pq_lineage.has_lineage %}
+    var pqLineageData = {{ pq_lineage|tojson }};
+    var pqTab = document.querySelector('[data-bs-target="#tab-pq-lineage"]');
+    if (pqTab) {
+        pqTab.addEventListener('shown.bs.tab', function() {
+            var c = document.getElementById('pq-lineage-container');
+            if (c && !c.hasChildNodes() && typeof renderPQLineage !== 'undefined') {
+                renderPQLineage('pq-lineage-container', pqLineageData);
+            }
+        });
+    }
+    {% endif %}
+
+    // AI Insights
+    {% if analysis_id %}
+    window.generateAIInsights = function() {
+        var btn = document.getElementById('ai-insights-btn');
+        var results = document.getElementById('ai-insights-results');
+        var content = document.getElementById('ai-insights-content');
+        var empty = document.getElementById('ai-insights-empty');
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i><span>{{ t("ai_insights_loading") }}</span>';
+        empty.style.display = 'none';
+        results.style.display = 'none';
+
+        fetch('/ai-insights/{{ analysis_id }}?lang={{ lang }}', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-stars me-1"></i><span>{{ t("ai_insights_generate") }}</span>';
+                if (data.error) {
+                    content.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>' + data.error + '</div>';
+                } else {
+                    // Simple markdown to HTML (bold, lists)
+                    var html = data.insights
+                        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/^### (.+)$/gm, '<h6 style="font-weight:700;color:var(--accent);margin-top:1rem;">$1</h6>')
+                        .replace(/^## (.+)$/gm, '<h5 style="font-weight:700;color:var(--accent);margin-top:1rem;">$1</h5>')
+                        .replace(/^- (.+)$/gm, '<li>$1</li>')
+                        .replace(/^(\d+)\. (.+)$/gm, '<li><strong>$1.</strong> $2</li>')
+                        .replace(/\n/g, '<br>');
+                    content.innerHTML = html;
+                    if (data.risk_assessment) {
+                        var riskColors = {low:'#22c55e',medium:'#f59e0b',high:'#f97316',critical:'#ef4444'};
+                        var rc = riskColors[data.risk_assessment] || '#6b7280';
+                        content.innerHTML += '<div class="mt-2"><span class="badge" style="background:'+rc+'22;color:'+rc+';font-weight:700;">Risk: '+data.risk_assessment.toUpperCase()+'</span></div>';
+                    }
+                }
+                results.style.display = 'block';
+            })
+            .catch(function(err) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-stars me-1"></i><span>{{ t("ai_insights_generate") }}</span>';
+                content.innerHTML = '<div class="alert alert-danger">Error: ' + err.message + '</div>';
+                results.style.display = 'block';
+            });
+    };
     {% endif %}
 </script>
 {% endblock %}

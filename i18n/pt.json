@@ -319,5 +319,81 @@
   "rh_visibility": "Visibilidade",
   "rh_top_types": "Top Tipos de Visual",
 
-  "export_json": "Baixar JSON"
+  "export_json": "Baixar JSON",
+
+  "editor_fix_all": "Corrigir Tudo",
+
+  "profile_select": "Perfil de Conformidade",
+  "profile_custom": "Personalizado",
+  "profile_export": "Exportar Perfil",
+  "profile_import": "Importar Perfil",
+
+  "IR-001": "A tabela '{table}' usa uma fonte de banco de dados mas nao tem atualizacao incremental configurada. Considere habilitar IR para atualizacoes mais rapidas.",
+  "IR-002": "A tabela '{table}' tem atualizacao incremental configurada mas nenhuma coluna de data/datetime foi encontrada. IR requer uma coluna de data.",
+  "IR-003": "A atualizacao incremental em '{table}' referencia a coluna '{column}' que nao e do tipo data.",
+
+  "embed_badge": "Embed",
+  "embed_title": "Badge e Widget Incorporavel",
+  "embed_preview": "Pre-visualizacao do Badge",
+  "embed_markdown": "Markdown",
+  "embed_html": "HTML",
+
+  "pq_lineage_title": "Linhagem PQ",
+  "pq_lineage_source": "Origem",
+  "pq_lineage_staging": "Intermediario",
+  "pq_lineage_final": "Final",
+
+  "debugger_title": "Depurador DAX",
+  "debugger_expression": "Expressao DAX",
+  "debugger_analyze": "Analisar",
+  "debugger_debug": "Depurar",
+
+  "ai_insights_title": "Insights com IA",
+  "ai_insights_generate": "Gerar Insights com IA",
+  "ai_insights_loading": "Analisando...",
+  "ai_insights_hint": "Clique em 'Gerar Insights com IA' para obter recomendacoes. Requer uma chave API configurada em Configuracoes.",
+
+  "settings_title": "Configuracoes",
+  "settings_ai_title": "Provedor de IA",
+  "settings_ai_provider": "Provedor",
+  "settings_ai_model": "Modelo",
+  "settings_ai_key": "Chave API",
+  "settings_save": "Salvar",
+
+  "dashboard_title": "Dashboard",
+  "dashboard_total_analyses": "Total de Analises",
+  "dashboard_unique_projects": "Projetos Unicos",
+  "dashboard_avg_score": "Pontuacao Media",
+  "dashboard_filter_search": "Buscar",
+  "dashboard_search_placeholder": "Filtrar projetos...",
+  "dashboard_filter_grade": "Nota",
+  "dashboard_all_grades": "Todas",
+  "dashboard_filter_from": "De",
+  "dashboard_filter_to": "Ate",
+  "dashboard_clear_filters": "Limpar Filtros",
+  "dashboard_projects": "Projetos",
+  "dashboard_analyses": "analises",
+  "dashboard_score_trend": "Tendencia de Pontuacao",
+  "dashboard_category_heatmap": "Mapa de Calor por Categoria",
+  "dashboard_empty": "Nenhuma analise encontrada. Envie um projeto para comecar.",
+
+  "download_docx": "Baixar Word",
+
+  "schedules_title": "Agendamentos",
+  "schedules_desc": "Configure re-analise periodica dos seus projetos Power BI.",
+  "schedules_info": "Os agendamentos executam analise em ZIPs armazenados. Envie um projeto primeiro, depois crie um agendamento a partir do historico.",
+  "schedules_project": "Projeto",
+  "schedules_cron": "Cron",
+  "schedules_email": "Email",
+  "schedules_last_run": "Ultima Execucao",
+  "schedules_last_score": "Pontuacao",
+  "schedules_status": "Estado",
+  "schedules_actions": "Acoes",
+  "schedules_active": "Ativo",
+  "schedules_paused": "Pausado",
+  "schedules_run_now": "Executar Agora",
+  "schedules_toggle": "Ativar/Pausar",
+  "schedules_delete": "Excluir",
+  "schedules_empty": "Nenhum agendamento configurado.",
+  "schedules_empty_hint": "Analise um projeto primeiro, depois voce podera agendar re-analises periodicas."
 }
